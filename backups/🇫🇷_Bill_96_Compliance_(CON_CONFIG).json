@@ -1,0 +1,403 @@
+{
+  "updatedAt": "2026-01-07T20:58:19.000Z",
+  "createdAt": "2026-01-06T00:29:00.151Z",
+  "id": "DbDDxx8YyVfHG90h",
+  "name": "🇫🇷 Bill 96 Compliance (CON CONFIG)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bill96-compliance",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f129dbf4-41cc-427b-a954-989423b89110",
+      "name": "Webhook - Bill 96 Check",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        352
+      ],
+      "webhookId": "400e9af1-0701-429e-92fc-a09c5c90eee6"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "f3c8010f-2991-4a6c-b5bc-3d4460a41af6",
+      "name": "Load Config Global",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -1552,
+        352
+      ],
+      "notes": "⚙️ Selecciona [SISTEMA] Config Global"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PARSE BILL 96 DATA - CON CONFIG GLOBAL\ntry {\n  const CONFIG = $('Load Config Global').item.json;\n  const input = $('Webhook - Bill 96 Check').item.json;\n\n  const postalCode = String(input.postal_code || '').toUpperCase().trim();\n  const isQuebecPostal = postalCode && CONFIG.QUEBEC_PREFIXES.includes(postalCode.charAt(0));\n\n  const clientData = {\n    name: String(input.name || input.client_name || '').trim() || 'Unknown',\n    email: String(input.email || '').trim().toLowerCase(),\n    phone: String(input.phone || '').trim(),\n    province: String(input.province || input.location || '').toUpperCase(),\n    city: String(input.city || ''),\n    postal_code: postalCode,\n    is_quebec_resident: Boolean(input.is_quebec_resident || String(input.province || '').toLowerCase() === 'qc' || isQuebecPostal),\n    works_in_quebec: Boolean(input.works_in_quebec || input.quebec_employer),\n    has_quebec_clients: Boolean(input.has_quebec_clients || input.serves_quebec),\n    quebec_business: Boolean(input.quebec_business || input.business_in_quebec),\n    preferred_language: String(input.preferred_language || input.language || CONFIG.DEFAULT_LANG).toLowerCase(),\n    french_proficiency: String(input.french_proficiency || input.speaks_french || 'none').toLowerCase(),\n    accepts_french_docs: Boolean(input.accepts_french_docs),\n    needs_translation: Boolean(input.needs_translation),\n    is_business: Boolean(input.is_business || input.entity_type === 'corporation'),\n    num_employees_quebec: Math.max(0, parseInt(input.num_employees_quebec || input.quebec_employees) || 0),\n    serves_public: Boolean(input.serves_public || input.public_facing),\n    communication_type: String(input.communication_type || 'general').toLowerCase(),\n    source: String(input.source || 'form'),\n    received_at: new Date().toISOString(),\n    _config: CONFIG,\n    _error: null\n  };\n\n  return { json: clientData };\n} catch (error) {\n  const CONFIG = $('Load Config Global').item.json || {};\n  return { json: { name: 'Error', _config: CONFIG, _error: error.message } };\n}"
+      },
+      "id": "f8209700-12c3-4c83-a001-29f7b1467de9",
+      "name": "Parse Bill 96 Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1328,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// BILL 96 COMPLIANCE LOGIC - CON CONFIG GLOBAL\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  let complianceFlags = [];\n  let requirements = [];\n  let riskLevel = 'LOW';\n  let riskScore = 0;\n  let recommendations = [];\n\n  const hasQuebecNexus = client.is_quebec_resident || client.works_in_quebec || client.has_quebec_clients || client.quebec_business;\n\n  if (!hasQuebecNexus) {\n    return { json: { ...client, bill96: { applies: false, reason: 'No Quebec nexus detected', flags: [], requirements: [], risk_level: 'NONE', risk_score: 0, recommendations: [], is_francophone: false, oqlf_registration_needed: false, bilingual_service_recommended: false, processed_at: new Date().toISOString() }, _bill96_error: null } };\n  }\n\n  complianceFlags.push('QUEBEC_NEXUS');\n\n  const isFrancophone = client.preferred_language === 'french' || client.french_proficiency === 'native' || client.french_proficiency === 'fluent';\n\n  if (isFrancophone) {\n    complianceFlags.push('FRANCOPHONE_CLIENT');\n  } else {\n    complianceFlags.push('NON_FRANCOPHONE');\n    riskScore += 20;\n    if (client.french_proficiency === 'none') {\n      complianceFlags.push('NO_FRENCH');\n      riskScore += 15;\n      recommendations.push('Consider bilingual communication strategy');\n    }\n  }\n\n  if (client.serves_public || client.has_quebec_clients) {\n    requirements.push({ type: 'CONSUMER_CONTRACTS', rule: 'All consumer contracts must be in French', action: 'Provide French version of all client-facing contracts', deadline: 'Immediate', penalty: 'Contract may be nullified' });\n    riskScore += 25;\n    complianceFlags.push('PUBLIC_FACING');\n  }\n\n  if (client.num_employees_quebec >= CONFIG.canada.BILL_96_EMPLOYEE_THRESHOLD) {\n    requirements.push({ type: 'WORKPLACE_FRENCH', rule: 'Businesses with 5+ QC employees must francize', action: 'Register with OQLF, implement francization program', deadline: '6 months', penalty: 'Fines up to $30,000' });\n    riskScore += 30;\n    complianceFlags.push('FRANCIZATION_REQUIRED');\n\n    if (client.num_employees_quebec >= CONFIG.canada.BILL_96_COMMITTEE_THRESHOLD) {\n      requirements.push({ type: 'FRANCIZATION_COMMITTEE', rule: 'Businesses with 25+ QC employees need francization committee', action: 'Establish committee, obtain francization certificate', deadline: '6 months', penalty: 'Fines and loss of government contracts' });\n      riskScore += 20;\n      complianceFlags.push('COMMITTEE_REQUIRED');\n    }\n  }\n\n  if (client.quebec_business && client.serves_public) {\n    requirements.push({ type: 'SIGNAGE', rule: 'Public signage must be predominantly French', action: 'Audit all signs', deadline: 'Immediate', penalty: 'Fines up to $20,000' });\n    riskScore += 15;\n    complianceFlags.push('SIGNAGE_RULES');\n  }\n\n  if (client.has_quebec_clients || client.quebec_business) {\n    requirements.push({ type: 'WEBSITE_MARKETING', rule: 'Websites targeting Quebec must have French version', action: 'Translate website', deadline: 'Recommended immediately', penalty: 'OQLF investigation' });\n    riskScore += 20;\n    complianceFlags.push('DIGITAL_PRESENCE');\n  }\n\n  switch(client.communication_type) {\n    case 'legal':\n      requirements.push({ type: 'LEGAL_DOCS', rule: 'Legal documents must be available in French', action: 'Provide French versions', deadline: 'Upon request', penalty: 'Documents may be unenforceable' });\n      riskScore += 20;\n      break;\n    case 'contracts':\n      requirements.push({ type: 'CONTRACT_LANGUAGE', rule: 'Contracts with Quebec consumers must be in French unless explicitly waived', action: 'Draft French contracts', deadline: 'Before signing', penalty: 'Contract nullification' });\n      riskScore += 25;\n      complianceFlags.push('CONTRACT_COMPLIANCE');\n      break;\n    case 'financial':\n      requirements.push({ type: 'FINANCIAL_DOCS', rule: 'Financial statements/invoices should be available in French', action: 'Provide bilingual invoices', deadline: 'Ongoing', penalty: 'Client complaints' });\n      riskScore += 10;\n      break;\n  }\n\n  if (client.is_quebec_resident) {\n    requirements.push({ type: 'TAX_COMMUNICATION', rule: 'Revenu Québec communicates primarily in French', action: 'Ensure client understands French tax correspondence', deadline: 'Ongoing', penalty: 'Missed deadlines' });\n    if (!isFrancophone) {\n      recommendations.push('Offer to explain Revenu Québec notices in English');\n      recommendations.push('Provide bilingual tax summaries');\n    }\n  }\n\n  if (riskScore >= 60) {\n    riskLevel = 'HIGH';\n    recommendations.unshift('⚠️ URGENT: Consult with OQLF compliance specialist');\n    recommendations.push('Consider hiring bilingual staff');\n    recommendations.push('Budget for translation services');\n  } else if (riskScore >= 30) {\n    riskLevel = 'MEDIUM';\n    recommendations.push('Review all client-facing documents for French availability');\n    recommendations.push('Consider bilingual document templates');\n  } else {\n    riskLevel = 'LOW';\n    recommendations.push('Maintain awareness of Bill 96 updates');\n  }\n\n  if (client.needs_translation || (!isFrancophone && hasQuebecNexus)) {\n    recommendations.push('We offer bilingual tax services (English/French)');\n    complianceFlags.push('TRANSLATION_RECOMMENDED');\n  }\n\n  const bill96 = {\n    applies: true,\n    nexus_type: client.is_quebec_resident ? 'RESIDENT' : client.quebec_business ? 'BUSINESS' : 'CLIENT_BASE',\n    flags: complianceFlags,\n    requirements: requirements,\n    risk_level: riskLevel,\n    risk_score: riskScore,\n    is_francophone: isFrancophone,\n    recommendations: recommendations,\n    oqlf_registration_needed: client.num_employees_quebec >= CONFIG.canada.BILL_96_EMPLOYEE_THRESHOLD,\n    bilingual_service_recommended: !isFrancophone,\n    processed_at: new Date().toISOString()\n  };\n\n  return { json: { ...client, bill96, _bill96_error: null } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, bill96: { applies: false, reason: 'Error: ' + error.message, flags: ['PROCESSING_ERROR'], requirements: [], risk_level: 'UNKNOWN', risk_score: 0, recommendations: ['Manual review required'], is_francophone: false, oqlf_registration_needed: false, bilingual_service_recommended: true, processed_at: new Date().toISOString() }, _bill96_error: error.message } };\n}"
+      },
+      "id": "cd674552-7d0c-4406-9d86-2f9037d1e270",
+      "name": "Bill 96 Compliance Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "bill96-applies",
+              "leftValue": "={{ $json.bill96.applies }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "de770477-56d0-437b-a573-f69923e12321",
+      "name": "Bill 96 Applies?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-risk",
+              "leftValue": "={{ $json.bill96.risk_level }}",
+              "rightValue": "HIGH",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "45e7d235-cd85-499a-9bbd-0383d3ca63cb",
+      "name": "High Risk?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { route: 'HIGH_RISK_BILL96', priority: 'URGENT', subject: `🚨 Bill 96 High Risk: ${data.name}`, data: data } };"
+      },
+      "id": "6f2d8a5f-e89b-43b1-8e38-bd9d1137dc4a",
+      "name": "High Risk Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { route: 'STANDARD_BILL96', priority: data.bill96?.risk_level === 'MEDIUM' ? 'MEDIUM' : 'NORMAL', subject: `📋 Bill 96 Review: ${data.name}`, data: data } };"
+      },
+      "id": "b4f293a8-27de-4c42-8f5d-5e28da4e8aad",
+      "name": "Standard Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { route: 'NO_BILL96', priority: 'NONE', subject: `No Bill 96: ${data.name}`, data: data } };"
+      },
+      "id": "ba990a2f-dadd-46e9-965d-f71c3394d86c",
+      "name": "No Bill 96 Required",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "id": "714e5f05-c789-45e3-8e01-764746925d36",
+      "name": "Merge Routes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -208,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARE RESPONSE\ntry {\n  const data = $input.first().json;\n  const bill96 = data.data?.bill96 || data.bill96;\n  const clientData = data.data || data;\n\n  let message = '';\n  if (!bill96?.applies) message = 'Bill 96 language requirements do not apply to your situation.';\n  else if (bill96?.risk_level === 'HIGH') message = 'Important: Your situation requires attention to Quebec language laws. Our bilingual team will contact you.';\n  else if (bill96?.risk_level === 'MEDIUM') message = 'Note: Some Quebec language requirements may apply. We offer fully bilingual services.';\n  else message = 'Quebec language requirements noted. We provide bilingual service upon request.';\n\n  return { json: {\n    success: true,\n    client_name: clientData.name,\n    bill96_applies: bill96?.applies || false,\n    risk_level: bill96?.risk_level || 'NONE',\n    is_francophone: bill96?.is_francophone || false,\n    requirements_count: (bill96?.requirements || []).length,\n    requirements: bill96?.requirements || [],\n    flags: bill96?.flags || [],\n    recommendations: bill96?.recommendations || [],\n    bilingual_service_available: true,\n    oqlf_registration_needed: bill96?.oqlf_registration_needed || false,\n    message: message,\n    message_french: (bill96?.applies && !bill96?.is_francophone) ? 'Note: Nous offrons tous nos services en français.' : null,\n    timestamp: new Date().toISOString()\n  }};\n} catch (error) {\n  return { json: { success: false, message: 'Bill 96 check completed with errors. Our bilingual team will follow up.', bilingual_service_available: true, error: error.message, timestamp: new Date().toISOString() } };\n}"
+      },
+      "id": "fc0814f1-726f-4549-be5a-b5879321a72f",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "81e0480e-f0c7-4512-a277-2ec537c0d0e5",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        352
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Bill 96 Check": {
+      "main": [
+        [
+          {
+            "node": "Load Config Global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config Global": {
+      "main": [
+        [
+          {
+            "node": "Parse Bill 96 Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Bill 96 Data": {
+      "main": [
+        [
+          {
+            "node": "Bill 96 Compliance Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bill 96 Compliance Logic": {
+      "main": [
+        [
+          {
+            "node": "Bill 96 Applies?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bill 96 Applies?": {
+      "main": [
+        [
+          {
+            "node": "High Risk?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Bill 96 Required",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Risk?": {
+      "main": [
+        [
+          {
+            "node": "High Risk Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Standard Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Risk Alert": {
+      "main": [
+        [
+          {
+            "node": "Merge Routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standard Processing": {
+      "main": [
+        [
+          {
+            "node": "Merge Routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Bill 96 Required": {
+      "main": [
+        [
+          {
+            "node": "Merge Routes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Routes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "fca98562-b14e-4e6a-abd8-e99ce5f05d13",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-06T00:29:00.153Z",
+      "createdAt": "2026-01-06T00:29:00.153Z",
+      "role": "workflow:owner",
+      "workflowId": "DbDDxx8YyVfHG90h",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-06T00:28:55.809Z",
+      "createdAt": "2026-01-06T00:28:55.809Z",
+      "id": "EanXy0cnTDCdceXR",
+      "name": "Quebec"
+    },
+    {
+      "updatedAt": "2026-01-07T20:58:11.703Z",
+      "createdAt": "2026-01-07T20:58:11.703Z",
+      "id": "KFNwf730j017KHjm",
+      "name": "Module"
+    },
+    {
+      "updatedAt": "2026-01-06T00:28:55.779Z",
+      "createdAt": "2026-01-06T00:28:55.779Z",
+      "id": "Oev4eU7VZmCPNbNU",
+      "name": "Bill 96"
+    },
+    {
+      "updatedAt": "2026-01-06T00:12:56.335Z",
+      "createdAt": "2026-01-06T00:12:56.335Z",
+      "id": "Oxt17eGy8pqN9eZ4",
+      "name": "Tax Season"
+    },
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    }
+  ]
+}
