@@ -1,0 +1,77 @@
+{
+  "updatedAt": "2026-01-08T17:30:21.000Z",
+  "createdAt": "2026-01-07T18:18:32.208Z",
+  "id": "pJCBn6LgwRwf7as4",
+  "name": "00-Config Global",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b9c6215f-c8c4-42de-8211-eae57894bad8",
+      "name": "When Called By Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ╔══════════════════════════════════════════════════════════════════════════════╗\n// ║                    MULTICOMM - CONFIGURACIÓN GLOBAL                          ║\n// ║                    Tax Automation System v1.0                                 ║\n// ║                    Última actualización: Enero 2026                          ║\n// ╚══════════════════════════════════════════════════════════════════════════════╝\n\n// ============================================================================\n// 🔐 CREDENCIALES Y CONEXIONES\n// ============================================================================\n\nconst CREDENTIALS = {\n  // Airtable\n  AIRTABLE_BASE_ID: 'appUcTJmLYOLXaz5c',\n  AIRTABLE_CREDENTIAL_ID: 'LyY9rQMryxBikuvf',\n  AIRTABLE_CREDENTIAL_NAME: 'Business Solutions - Airtable',\n  \n  // SendGrid\n  SENDGRID_CREDENTIAL_ID: 'Zn3MMxEaAOeNuk0Z',\n  SENDGRID_CREDENTIAL_NAME: 'Business Solutions - SendGrid',\n  SENDGRID_FROM_EMAIL: 'fernandosorokin@gmail.com',\n  SENDGRID_FROM_NAME: 'Multicomm Business Solutions',\n  \n  // Twilio (para SMS) - COMPLETAR cuando esté configurado\n  TWILIO_CREDENTIAL_ID: '',\n  TWILIO_CREDENTIAL_NAME: '',\n  TWILIO_FROM_NUMBER: '',\n  \n  // n8n Instance\n  N8N_INSTANCE_URL: 'https://f1ernandoautomation.app.n8n.cloud',\n  N8N_INSTANCE_ID: 'f942b0d36ed058c8c9149999f9567b38aaaba694ccf1a19aa3a56f9eaf2fd86b'\n};\n\n// ============================================================================\n// 📊 TABLAS DE AIRTABLE\n// ============================================================================\n\nconst AIRTABLE_TABLES = {\n  // Tablas principales\n  LEADS: 'tblUJgOHMC7hPC4Yh',\n  TAX_CASES: 'Tax_Cases',\n  CLIENTS: 'Clients',\n  ERROR_LOGS: 'Error_Logs',\n  \n  // Tablas auxiliares (crear si no existen)\n  DOCUMENTS: 'Documents',\n  NOTIFICATIONS: 'Notifications',\n  AUDIT_LOG: 'Audit_Log'\n};\n\n// ============================================================================\n// 🌐 WEBHOOKS URLs\n// ============================================================================\n\nconst WEBHOOKS = {\n  // URLs base\n  BASE_URL: 'https://f1ernandoautomation.app.n8n.cloud/webhook',\n  BASE_URL_TEST: 'https://f1ernandoautomation.app.n8n.cloud/webhook-test',\n  \n  // Endpoints específicos\n  UNIFIED_INTAKE: '/unified-intake',\n  TAX_INTAKE: '/tax-intake',\n  DOCUMENT_COLLECTION: '/document-collection',\n  BILL96_COMPLIANCE: '/bill96-compliance',\n  TAX_TRIAGE: '/tax-triage',\n  NEXUS_DETECTION: '/nexus-detection',\n  CONTACT_FORM: '/contact-form-business-solutions'\n};\n\n// ============================================================================\n// 📁 RUTAS DE DOCUMENTOS\n// ============================================================================\n\nconst DOCUMENT_PATHS = {\n  // Google Drive\n  GOOGLE_DRIVE_ROOT: 'YOUR_GOOGLE_DRIVE_FOLDER_ID',\n  GOOGLE_DRIVE_CLIENTS: 'YOUR_CLIENTS_FOLDER_ID',\n  GOOGLE_DRIVE_TEMPLATES: 'YOUR_TEMPLATES_FOLDER_ID',\n  \n  // Dropbox (alternativo)\n  DROPBOX_REQUEST_ID: 'YOUR_DROPBOX_REQUEST_ID',\n  \n  // URLs públicas para clientes\n  UPLOAD_URL_TEMPLATE: 'https://drive.google.com/drive/folders/{FOLDER_ID}',\n  \n  // Expiración de links (días)\n  LINK_EXPIRY_DAYS: 30\n};\n\n// ============================================================================\n// 🌍 CONFIGURACIÓN DE IDIOMAS\n// ============================================================================\n\nconst LANGUAGES = {\n  DEFAULT_LANG: 'english',\n  SUPPORTED_LANGS: ['english', 'spanish', 'french'],\n  \n  // Mapeo de códigos\n  LANG_CODES: {\n    'english': 'en',\n    'spanish': 'es', \n    'french': 'fr',\n    'en': 'english',\n    'es': 'spanish',\n    'fr': 'french'\n  },\n  \n  // Preferencias por defecto según provincia\n  PROVINCE_LANG_DEFAULTS: {\n    'QC': 'french',\n    'ON': 'english',\n    'BC': 'english',\n    'AB': 'english',\n    'NB': 'english',  // Bilingüe\n    'DEFAULT': 'english'\n  }\n};\n\n// ============================================================================\n// 🍁 CONFIGURACIÓN CANADIENSE\n// ============================================================================\n\nconst CANADA_CONFIG = {\n  // Provincias y códigos postales\n  POSTAL_PREFIXES: {\n    'A': 'NL', 'B': 'NS', 'C': 'PE', 'E': 'NB',\n    'G': 'QC', 'H': 'QC', 'J': 'QC',\n    'K': 'ON', 'L': 'ON', 'M': 'ON', 'N': 'ON', 'P': 'ON',\n    'R': 'MB', 'S': 'SK', 'T': 'AB',\n    'V': 'BC', 'X': 'NT', 'Y': 'YT'\n  },\n  \n  // Quebec (Bill 96)\n  QUEBEC_POSTAL_PREFIXES: ['G', 'H', 'J'],\n  BILL_96_EMPLOYEE_THRESHOLD: 5,\n  BILL_96_COMMITTEE_THRESHOLD: 25,\n  \n  // Umbrales fiscales\n  GST_THRESHOLD: 30000,\n  HST_PROVINCES: ['ON', 'NB', 'NS', 'NL', 'PE'],\n  GST_ONLY_PROVINCES: ['AB', 'BC', 'MB', 'SK', 'QC', 'NT', 'NU', 'YT'],\n  \n  // Tax Year\n  CURRENT_TAX_YEAR: new Date().getFullYear() - 1,\n  TAX_DEADLINE: '2026-04-30',\n  SELF_EMPLOYED_DEADLINE: '2026-06-15'\n};\n\n// ============================================================================\n// 🇺🇸 CONFIGURACIÓN USA (Cross-Border)\n// ============================================================================\n\nconst USA_CONFIG = {\n  // Economic Nexus thresholds por estado\n  NEXUS_THRESHOLDS: {\n    'DEFAULT': { sales: 100000, transactions: 200 },\n    'CA': { sales: 500000, transactions: null },\n    'NY': { sales: 500000, transactions: 100 },\n    'TX': { sales: 500000, transactions: null },\n    'FL': { sales: 100000, transactions: 200 }\n  },\n  \n  // Border hubs comunes\n  BORDER_HUBS: {\n    '14301': { city: 'Niagara Falls', state: 'NY' },\n    '14302': { city: 'Niagara Falls', state: 'NY' },\n    '14303': { city: 'Niagara Falls', state: 'NY' },\n    '14304': { city: 'Niagara Falls', state: 'NY' },\n    '14305': { city: 'Niagara Falls', state: 'NY' },\n    '48201': { city: 'Detroit', state: 'MI' },\n    '48207': { city: 'Detroit', state: 'MI' },\n    '48226': { city: 'Detroit', state: 'MI' },\n    '98230': { city: 'Blaine', state: 'WA' },\n    '98225': { city: 'Bellingham', state: 'WA' },\n    '59101': { city: 'Billings', state: 'MT' }\n  },\n  \n  // Días en USA para riesgo de residencia\n  SNOWBIRD_THRESHOLD_DAYS: 120,\n  SUBSTANTIAL_PRESENCE_DAYS: 183\n};\n\n// ============================================================================\n// 📧 PLANTILLAS DE NOTIFICACIÓN\n// ============================================================================\n\nconst NOTIFICATION_CONFIG = {\n  // Email alertas internas\n  ALERT_EMAIL: 'fernandosorokin@gmail.com',\n  ALERT_EMAIL_CC: '',\n  \n  // Nombres de remitente por tipo\n  SENDER_NAMES: {\n    'tax_audit': 'Tax Audit System - Multicomm',\n    'lead': 'Business Solutions - Multicomm',\n    'error': '🚨 Multicomm Error Alert',\n    'document': 'Document Request - Multicomm',\n    'bill96': 'Compliance Alert - Multicomm'\n  },\n  \n  // Prioridades y tiempos de respuesta\n  RESPONSE_TIMES: {\n    'CRITICAL': '2 hours',\n    'HIGH': '24 hours',\n    'MEDIUM': '48 hours',\n    'LOW': '72 hours',\n    'NORMAL': '48 hours'\n  }\n};\n\n// ============================================================================\n// 💰 CONFIGURACIÓN DE PRECIOS Y BILLING\n// ============================================================================\n\nconst BILLING_CONFIG = {\n  // Multiplicadores por complejidad\n  COMPLEXITY_MULTIPLIERS: {\n    'SIMPLE': 1.0,\n    'MODERATE': 1.25,\n    'COMPLEX': 1.5,\n    'VERY_COMPLEX': 2.0\n  },\n  \n  // Multiplicadores por tipo de servicio\n  SERVICE_MULTIPLIERS: {\n    'PERSONAL': 1.0,\n    'CORPORATE': 1.5,\n    'TRUST': 1.75,\n    'ESTATE': 2.0\n  },\n  \n  // Multiplicadores por nexus\n  NEXUS_MULTIPLIERS: {\n    'STANDARD': 1.0,\n    'MEDIUM': 1.5,\n    'HIGH': 2.0\n  },\n  \n  // Recargos especiales\n  SURCHARGES: {\n    'URGENT': 1.25,\n    'CRA_AUDIT': 1.5,\n    'BACK_TAXES_PER_YEAR': 0.75,\n    'CROSS_BORDER': 1.5\n  }\n};\n\n// ============================================================================\n// 👥 ASIGNACIÓN DE PERSONAL\n// ============================================================================\n\nconst STAFF_ASSIGNMENT = {\n  // Roles y capacidades\n  ROLES: {\n    'general_queue': { max_complexity: 25, types: ['PERSONAL'] },\n    'staff': { max_complexity: 40, types: ['PERSONAL'] },\n    'senior_accountant': { max_complexity: 75, types: ['PERSONAL', 'CORPORATE', 'TRUST'] },\n    'partner': { max_complexity: 999, types: ['ALL'] }\n  },\n  \n  // Asignación automática\n  AUTO_ASSIGN: {\n    'CRA_AUDIT': 'partner',\n    'DECEASED_RETURN': 'senior_accountant',\n    'CORPORATE': 'senior_accountant',\n    'TRUST': 'senior_accountant',\n    'CROSS_BORDER_US_CA': 'senior_accountant',\n    'HIGH_COMPLEXITY': 'senior_accountant',\n    'DEFAULT': 'general_queue'\n  }\n};\n\n// ============================================================================\n// 🔄 WORKFLOW IDs (Actualizar después de importar)\n// ============================================================================\n\nconst WORKFLOW_IDS = {\n  // IMPORTANTE: Actualizar estos IDs después de importar los workflows\n  ERROR_HANDLER: 'YOUR_ERROR_HANDLER_WORKFLOW_ID',\n  UNIFIED_INTAKE: 'YOUR_UNIFIED_INTAKE_WORKFLOW_ID',\n  MASTER_TAX_INTAKE: 'YOUR_MASTER_TAX_INTAKE_WORKFLOW_ID',\n  DOCUMENT_COLLECTION: 'YOUR_DOCUMENT_COLLECTION_WORKFLOW_ID',\n  BILL96_COMPLIANCE: 'YOUR_BILL96_COMPLIANCE_WORKFLOW_ID',\n  TAX_TRIAGE: 'YOUR_TAX_TRIAGE_WORKFLOW_ID',\n  NEXUS_DETECTION: 'YOUR_NEXUS_DETECTION_WORKFLOW_ID',\n  CONFIG_GLOBAL: 'THIS_WORKFLOW_ID'\n};\n\n// ============================================================================\n// 📝 FORMULARIOS REQUERIDOS\n// ============================================================================\n\nconst TAX_FORMS = {\n  CANADA: {\n    'T1': 'Personal Income Tax Return',\n    'T2': 'Corporate Income Tax Return',\n    'T3': 'Trust Income Tax Return',\n    'T4': 'Statement of Remuneration Paid',\n    'T5': 'Statement of Investment Income',\n    'T776': 'Statement of Real Estate Rentals',\n    'T2125': 'Statement of Business Activities',\n    'T1135': 'Foreign Income Verification Statement',\n    'T1SCH3': 'Capital Gains (or Losses)',\n    'TP1': 'Quebec Income Tax Return',\n    'HST_RETURN': 'HST/GST Return'\n  },\n  USA: {\n    '1040': 'US Individual Income Tax Return',\n    'FBAR': 'Report of Foreign Bank Accounts',\n    '1099': 'Miscellaneous Income',\n    'W-2': 'Wage and Tax Statement'\n  }\n};\n\n// ============================================================================\n// 🚀 EXPORTAR CONFIGURACIÓN COMPLETA\n// ============================================================================\n\nconst CONFIG = {\n  // Metadata\n  _version: '1.0.0',\n  _updated: new Date().toISOString(),\n  _environment: 'production',\n  \n  // Todas las configuraciones\n  credentials: CREDENTIALS,\n  airtable_tables: AIRTABLE_TABLES,\n  webhooks: WEBHOOKS,\n  document_paths: DOCUMENT_PATHS,\n  languages: LANGUAGES,\n  canada: CANADA_CONFIG,\n  usa: USA_CONFIG,\n  notifications: NOTIFICATION_CONFIG,\n  billing: BILLING_CONFIG,\n  staff: STAFF_ASSIGNMENT,\n  workflow_ids: WORKFLOW_IDS,\n  tax_forms: TAX_FORMS,\n  \n  // Shortcuts más usados (acceso directo)\n  AIRTABLE_BASE_ID: CREDENTIALS.AIRTABLE_BASE_ID,\n  SENDGRID_FROM: CREDENTIALS.SENDGRID_FROM_EMAIL,\n  DEFAULT_LANG: LANGUAGES.DEFAULT_LANG,\n  CURRENT_TAX_YEAR: CANADA_CONFIG.CURRENT_TAX_YEAR,\n  GST_THRESHOLD: CANADA_CONFIG.GST_THRESHOLD,\n  QUEBEC_PREFIXES: CANADA_CONFIG.QUEBEC_POSTAL_PREFIXES,\n  ALERT_EMAIL: NOTIFICATION_CONFIG.ALERT_EMAIL\n};\n\n// Pasar input data si existe\nconst inputData = $input.first()?.json || {};\n\nreturn { \n  json: { \n    ...CONFIG,\n    _input: inputData,\n    _called_at: new Date().toISOString()\n  } \n};"
+      },
+      "id": "7b8c44fb-0c5e-47b3-94f5-2680b2139b5d",
+      "name": "CONFIG_MASTER",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "When Called By Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "CONFIG_MASTER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG_MASTER": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "c43ed169-0921-4c57-aac9-e6abeb1ce775",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-07T18:18:32.210Z",
+      "createdAt": "2026-01-07T18:18:32.210Z",
+      "role": "workflow:owner",
+      "workflowId": "pJCBn6LgwRwf7as4",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    }
+  ]
+}
