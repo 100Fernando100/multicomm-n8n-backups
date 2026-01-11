@@ -1,0 +1,323 @@
+{
+  "updatedAt": "2026-01-07T20:59:07.000Z",
+  "createdAt": "2026-01-06T00:13:05.167Z",
+  "id": "kPNSp4CBGvX9DaK4",
+  "name": "🌎 Nexus Detection (CON CONFIG)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nexus-detection",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8d428e82-cf7d-46d7-bdd1-2a771506dcfa",
+      "name": "Webhook - Client Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -704,
+        176
+      ],
+      "webhookId": "cdbaf1e7-4e39-496e-bc3e-19d68f512095"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "4b7f4aad-290a-409f-bfca-9975ee4fcf6d",
+      "name": "Load Config Global",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -480,
+        176
+      ],
+      "notes": "⚙️ Selecciona [SISTEMA] Config Global"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PARSE INPUT - CON CONFIG GLOBAL\ntry {\n  const CONFIG = $('Load Config Global').item.json;\n  const input = $('Webhook - Client Intake').item.json;\n\n  const clientData = {\n    name: String(input.name || input.client_name || '').trim() || 'Unknown',\n    email: String(input.email || '').trim().toLowerCase(),\n    phone: String(input.phone || '').trim(),\n    preferred_language: String(input.preferred_language || input.language || CONFIG.DEFAULT_LANG).toLowerCase(),\n    provinces: {\n      ontario: Boolean(input.income_ontario || input.lives_ontario),\n      quebec: Boolean(input.income_quebec || input.lives_quebec),\n      bc: Boolean(input.income_bc),\n      alberta: Boolean(input.income_alberta),\n      other_provinces: Array.isArray(input.other_provinces) ? input.other_provinces : []\n    },\n    us_states: {\n      has_us_income: Boolean(input.has_us_income || input.us_income),\n      states: Array.isArray(input.us_states) ? input.us_states : [],\n      florida: Boolean(input.income_florida),\n      new_york: Boolean(input.income_ny || input.income_new_york),\n      california: Boolean(input.income_california),\n      texas: Boolean(input.income_texas)\n    },\n    cross_border: {\n      us_citizen: Boolean(input.us_citizen),\n      green_card: Boolean(input.green_card),\n      us_property: Boolean(input.us_property || input.owns_us_property),\n      us_investments: Boolean(input.us_investments),\n      us_employer: Boolean(input.us_employer),\n      days_in_us: Math.max(0, parseInt(input.days_in_us) || 0),\n      snowbird: Boolean(input.snowbird) || (parseInt(input.days_in_us) || 0) > CONFIG.usa.SNOWBIRD_THRESHOLD_DAYS\n    },\n    quebec_compliance: {\n      primary_language: String(input.primary_language || CONFIG.DEFAULT_LANG).toLowerCase(),\n      requires_french: Boolean(input.lives_quebec || input.income_quebec)\n    },\n    source: String(input.source || 'form'),\n    received_at: new Date().toISOString(),\n    _config: CONFIG,\n    _error: null\n  };\n\n  return { json: clientData };\n} catch (error) {\n  const CONFIG = $('Load Config Global').item.json || {};\n  return { json: { name: 'Error', _config: CONFIG, _error: error.message } };\n}"
+      },
+      "id": "185c5134-8e6d-47d7-9e67-b4861fdc33ea",
+      "name": "Parse Input Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NEXUS DETECTION LOGIC - CON CONFIG GLOBAL\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  let nexusFlags = [];\n  let complexityScore = 0;\n  let jurisdictions = [];\n  let requiredForms = ['T1'];\n\n  // Canadian multi-province detection\n  let canadianProvinces = [];\n  if (client.provinces?.ontario) canadianProvinces.push('ON');\n  if (client.provinces?.quebec) canadianProvinces.push('QC');\n  if (client.provinces?.bc) canadianProvinces.push('BC');\n  if (client.provinces?.alberta) canadianProvinces.push('AB');\n  if (client.provinces?.other_provinces?.length) {\n    canadianProvinces = [...canadianProvinces, ...client.provinces.other_provinces];\n  }\n\n  if (canadianProvinces.length > 1) {\n    nexusFlags.push('MULTI_PROVINCE');\n    complexityScore += 20;\n    jurisdictions.push(...canadianProvinces);\n  }\n\n  // Quebec special handling\n  if (client.provinces?.quebec) {\n    nexusFlags.push('QUEBEC_RESIDENT');\n    complexityScore += 15;\n    requiredForms.push('TP1');\n    if (client.quebec_compliance?.primary_language !== 'french') {\n      nexusFlags.push('BILL_96_ATTENTION');\n      complexityScore += 5;\n    }\n  }\n\n  // US multi-state detection\n  let usStates = [];\n  if (client.us_states?.florida) usStates.push('FL');\n  if (client.us_states?.new_york) usStates.push('NY');\n  if (client.us_states?.california) usStates.push('CA');\n  if (client.us_states?.texas) usStates.push('TX');\n  if (client.us_states?.states?.length) {\n    usStates = [...new Set([...usStates, ...client.us_states.states])];\n  }\n\n  if (usStates.length > 1) {\n    nexusFlags.push('MULTI_STATE_US');\n    complexityScore += 25;\n    jurisdictions.push(...usStates.map(s => 'US-' + s));\n  }\n\n  // Cross-border USA-Canada detection\n  const hasCrossBorder = client.us_states?.has_us_income || client.cross_border?.us_citizen || client.cross_border?.green_card || client.cross_border?.us_property || client.cross_border?.us_investments || client.cross_border?.us_employer || client.cross_border?.snowbird;\n\n  if (hasCrossBorder) {\n    nexusFlags.push('CROSS_BORDER_US_CA');\n    complexityScore += 35;\n    requiredForms.push('T1135');\n\n    if (client.cross_border?.us_citizen) {\n      nexusFlags.push('US_CITIZEN_ABROAD');\n      complexityScore += 20;\n      requiredForms.push('1040', 'FBAR');\n    }\n    if (client.cross_border?.green_card) {\n      nexusFlags.push('GREEN_CARD_HOLDER');\n      complexityScore += 15;\n      requiredForms.push('1040');\n    }\n    if (client.cross_border?.snowbird) {\n      nexusFlags.push('SNOWBIRD_RISK');\n      complexityScore += 10;\n    }\n    if (client.cross_border?.days_in_us > CONFIG.usa.SUBSTANTIAL_PRESENCE_DAYS) {\n      nexusFlags.push('SUBSTANTIAL_PRESENCE_TEST');\n      complexityScore += 25;\n    }\n  }\n\n  // State-specific forms using CONFIG\n  if (usStates.includes('CA')) requiredForms.push('CA-540');\n  if (usStates.includes('NY')) requiredForms.push('NY-IT201');\n\n  // Determine complexity tier using CONFIG billing multipliers\n  let complexityTier, billingMultiplier;\n  if (complexityScore >= 60) {\n    complexityTier = 'HIGH';\n    billingMultiplier = CONFIG.billing.NEXUS_MULTIPLIERS.HIGH;\n  } else if (complexityScore >= 30) {\n    complexityTier = 'MEDIUM';\n    billingMultiplier = CONFIG.billing.NEXUS_MULTIPLIERS.MEDIUM;\n  } else {\n    complexityTier = 'STANDARD';\n    billingMultiplier = CONFIG.billing.NEXUS_MULTIPLIERS.STANDARD;\n  }\n\n  // Assign based on complexity using CONFIG\n  let assignTo = CONFIG.staff.AUTO_ASSIGN.DEFAULT;\n  if (complexityTier === 'HIGH' || nexusFlags.includes('CROSS_BORDER_US_CA')) {\n    assignTo = CONFIG.staff.AUTO_ASSIGN.CROSS_BORDER_US_CA || 'senior_accountant';\n  }\n\n  const nexus = {\n    flags: nexusFlags,\n    jurisdictions: [...new Set(jurisdictions)],\n    complexity_score: complexityScore,\n    complexity_tier: complexityTier,\n    billing_multiplier: billingMultiplier,\n    required_forms: [...new Set(requiredForms)],\n    is_multi_jurisdiction: nexusFlags.length > 0,\n    assign_to: assignTo,\n    response_time: CONFIG.notifications.RESPONSE_TIMES[complexityTier === 'HIGH' ? 'HIGH' : 'NORMAL'],\n    detected_at: new Date().toISOString()\n  };\n\n  return { json: { ...client, nexus, _nexus_error: null } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, nexus: { flags: ['PROCESSING_ERROR'], jurisdictions: [], complexity_score: 0, complexity_tier: 'STANDARD', billing_multiplier: 1.0, required_forms: ['T1'], is_multi_jurisdiction: false, assign_to: 'general_queue', detected_at: new Date().toISOString() }, _nexus_error: error.message } };\n}"
+      },
+      "id": "0663d9d5-248e-4a7a-a830-6a7ca4d6adc8",
+      "name": "Nexus Detection Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-complexity",
+              "leftValue": "={{ $json.nexus.complexity_tier }}",
+              "rightValue": "HIGH",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ca374459-945a-4a52-bafd-cef3946e9bd8",
+      "name": "Route by Complexity",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        192,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { priority: 'HIGH', subject: `🚨 High Complexity Case: ${data.name}`, route: 'HIGH_COMPLEXITY', data: data } };"
+      },
+      "id": "742672ee-2764-4001-b1e4-237c0ede3bf4",
+      "name": "High Complexity Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { priority: data.nexus?.complexity_tier === 'MEDIUM' ? 'MEDIUM' : 'NORMAL', subject: `New Client: ${data.name}`, route: 'STANDARD', data: data } };"
+      },
+      "id": "436716a9-86f1-4003-baa2-9dec51ac77ea",
+      "name": "Standard Flow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "id": "6efc4653-52da-44c5-86a1-b6a2bcc9ad53",
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        640,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARE RESPONSE - CON CONFIG\ntry {\n  const data = $input.first().json;\n  const CONFIG = data.data?._config || {};\n  const nexusData = data.data?.nexus || data.nexus;\n  const clientData = data.data || data;\n\n  const responseTime = nexusData?.response_time || CONFIG.notifications?.RESPONSE_TIMES?.NORMAL || '48 hours';\n\n  return { json: {\n    success: true,\n    client_name: clientData.name,\n    nexus_detected: nexusData?.is_multi_jurisdiction || false,\n    complexity_tier: nexusData?.complexity_tier || 'STANDARD',\n    complexity_score: nexusData?.complexity_score || 0,\n    billing_multiplier: nexusData?.billing_multiplier || 1.0,\n    flags: nexusData?.flags || [],\n    jurisdictions: nexusData?.jurisdictions || [],\n    required_forms: nexusData?.required_forms || ['T1'],\n    assigned_to: nexusData?.assign_to || 'general_queue',\n    response_time: responseTime,\n    message: nexusData?.complexity_tier === 'HIGH' ? `High complexity case - our senior accountant will contact you within ${responseTime}.` : 'Thank you! We will review your information and contact you shortly.',\n    timestamp: new Date().toISOString()\n  }};\n} catch (error) {\n  return { json: { success: false, message: 'Your information was received. Our team will contact you.', error: error.message, timestamp: new Date().toISOString() } };\n}"
+      },
+      "id": "a8438ffe-20c3-4386-8044-8c13da7fb898",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "1b4fdb48-2e79-4a24-9d2d-4c02de16cdef",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1088,
+        176
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Client Intake": {
+      "main": [
+        [
+          {
+            "node": "Load Config Global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config Global": {
+      "main": [
+        [
+          {
+            "node": "Parse Input Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input Data": {
+      "main": [
+        [
+          {
+            "node": "Nexus Detection Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nexus Detection Logic": {
+      "main": [
+        [
+          {
+            "node": "Route by Complexity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Complexity": {
+      "main": [
+        [
+          {
+            "node": "High Complexity Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Standard Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Complexity Alert": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standard Flow": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Paths": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "62b14696-9e53-4e4b-a0ed-bb6978ced2ee",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-06T00:13:05.184Z",
+      "createdAt": "2026-01-06T00:13:05.184Z",
+      "role": "workflow:owner",
+      "workflowId": "kPNSp4CBGvX9DaK4",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-06T00:12:56.410Z",
+      "createdAt": "2026-01-06T00:12:56.410Z",
+      "id": "2bZXhOeGyhyh5Zmb",
+      "name": "Nexus Detection"
+    },
+    {
+      "updatedAt": "2026-01-07T20:58:11.703Z",
+      "createdAt": "2026-01-07T20:58:11.703Z",
+      "id": "KFNwf730j017KHjm",
+      "name": "Module"
+    },
+    {
+      "updatedAt": "2026-01-06T00:12:56.335Z",
+      "createdAt": "2026-01-06T00:12:56.335Z",
+      "id": "Oxt17eGy8pqN9eZ4",
+      "name": "Tax Season"
+    },
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    }
+  ]
+}
