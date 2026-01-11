@@ -1,0 +1,419 @@
+{
+  "updatedAt": "2026-01-07T20:59:39.000Z",
+  "createdAt": "2026-01-06T00:45:12.195Z",
+  "id": "o2nDqKKS9sMaeYhV",
+  "name": "🎯 Master Tax Intake (CON CONFIG)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tax-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "606705bb-6814-44d9-a0ab-e68bd89c325a",
+      "name": "Webhook - Master Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3952,
+        160
+      ],
+      "webhookId": "e9fd3768-7271-44cb-8c9c-bd5ab377e1b1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "dd9e3a95-eee4-4dfe-a09e-bc5986e3e95c",
+      "name": "Load Config Global",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -3728,
+        160
+      ],
+      "notes": "⚙️ Selecciona [SISTEMA] Config Global"
+    },
+    {
+      "parameters": {
+        "jsCode": "// NORMALIZE INPUT - CON CONFIG GLOBAL\ntry {\n  const CONFIG = $('Load Config Global').item.json;\n  const input = $('Webhook - Master Intake').item.json;\n\n  const clientData = {\n    name: String(input.name || input.client_name || input.full_name || '').trim() || 'Unknown',\n    email: String(input.email || '').trim().toLowerCase(),\n    phone: String(input.phone || input.phone_number || '').trim(),\n    preferred_language: String(input.preferred_language || input.language || CONFIG.DEFAULT_LANG).toLowerCase(),\n    is_existing_client: Boolean(input.is_existing_client || input.existing_client),\n    client_id: input.client_id || null,\n    tax_year: parseInt(input.tax_year) || CONFIG.CURRENT_TAX_YEAR,\n    entity_type: String(input.entity_type || input.client_type || 'individual').toLowerCase(),\n    employment_type: String(input.employment_type || 'employed').toLowerCase(),\n    has_spouse: Boolean(input.has_spouse || input.married),\n    has_dependents: Boolean(input.has_dependents || input.children),\n    num_dependents: Math.max(0, parseInt(input.num_dependents) || 0),\n    income_sources: {\n      employment: input.has_employment_income !== false,\n      self_employment: Boolean(input.has_self_employment || input.has_business),\n      rental: Boolean(input.has_rental_income || input.rental_property),\n      investments: Boolean(input.has_investment_income || input.investments),\n      foreign: Boolean(input.has_foreign_income),\n      crypto: Boolean(input.has_crypto || input.cryptocurrency),\n      capital_gains: Boolean(input.has_capital_gains || input.sold_property)\n    },\n    business: {\n      has_business: Boolean(input.has_business || input.self_employed),\n      business_type: input.business_type || null,\n      has_employees: Boolean(input.has_employees),\n      annual_revenue: parseFloat(input.annual_revenue) || null,\n      needs_hst: Boolean(input.needs_hst || input.hst_registration)\n    },\n    corporation: {\n      is_ccpc: Boolean(input.is_ccpc),\n      has_shareholder_loans: Boolean(input.shareholder_loans),\n      needs_t2: input.entity_type === 'corporation'\n    },\n    province: String(input.province || input.location || '').toUpperCase(),\n    postal_code: String(input.postal_code || '').toUpperCase(),\n    provinces: {\n      ontario: Boolean(input.income_ontario || input.lives_ontario),\n      quebec: Boolean(input.income_quebec || input.lives_quebec),\n      bc: Boolean(input.income_bc),\n      alberta: Boolean(input.income_alberta)\n    },\n    us_states: {\n      has_us_income: Boolean(input.has_us_income || input.us_income),\n      florida: Boolean(input.income_florida),\n      new_york: Boolean(input.income_ny),\n      california: Boolean(input.income_california)\n    },\n    cross_border: {\n      us_citizen: Boolean(input.us_citizen),\n      green_card: Boolean(input.green_card),\n      us_property: Boolean(input.us_property),\n      us_investments: Boolean(input.us_investments),\n      snowbird: Boolean(input.snowbird) || (parseInt(input.days_in_us) || 0) > CONFIG.usa.SNOWBIRD_THRESHOLD_DAYS\n    },\n    quebec: {\n      is_resident: Boolean(input.is_quebec_resident || String(input.province || '').toLowerCase() === 'qc'),\n      works_in_quebec: Boolean(input.works_in_quebec),\n      has_quebec_clients: Boolean(input.has_quebec_clients),\n      french_proficiency: String(input.french_proficiency || 'none').toLowerCase(),\n      num_employees_quebec: Math.max(0, parseInt(input.num_employees_quebec) || 0)\n    },\n    special_situations: {\n      first_time_filer: Boolean(input.first_time || input.first_time_filer),\n      new_to_canada: Boolean(input.new_to_canada || input.immigrant),\n      leaving_canada: Boolean(input.leaving_canada),\n      deceased_return: Boolean(input.deceased || input.estate),\n      bankruptcy: Boolean(input.bankruptcy),\n      cra_audit: Boolean(input.audit || input.cra_review),\n      unfiled_years: Array.isArray(input.unfiled_years) ? input.unfiled_years : []\n    },\n    urgency: String(input.urgency || 'normal').toLowerCase(),\n    source: String(input.source || 'master_webhook'),\n    received_at: new Date().toISOString(),\n    pipeline_id: `PIPE-${Date.now()}`,\n    _config: CONFIG,\n    _error: null\n  };\n\n  return { json: clientData };\n} catch (error) {\n  const CONFIG = $('Load Config Global').item.json || {};\n  return { json: { name: 'Error', pipeline_id: `ERR-${Date.now()}`, _config: CONFIG, _error: error.message } };\n}"
+      },
+      "id": "cc8d71c6-6814-4f86-8560-1d4890fb31e2",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3504,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MODULE 1: TAX TRIAGE - CON CONFIG\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  let requiredForms = [];\n  let serviceType = '';\n  let estimatedTime = 0;\n  let priorityScore = 0;\n  let flags = [];\n  let assignTo = CONFIG.staff.AUTO_ASSIGN.DEFAULT;\n\n  if (client.entity_type === 'corporation' || client.corporation?.needs_t2) {\n    serviceType = 'CORPORATE';\n    requiredForms.push('T2');\n    estimatedTime = 180;\n    priorityScore += 30;\n    if (client.corporation?.is_ccpc) { flags.push('CCPC'); requiredForms.push('T2SCH125', 'T2SCH100'); }\n  } else if (client.entity_type === 'trust') {\n    serviceType = 'TRUST';\n    requiredForms.push('T3');\n    estimatedTime = 120;\n    priorityScore += 25;\n    assignTo = 'senior_accountant';\n  } else {\n    serviceType = 'PERSONAL';\n    requiredForms.push('T1');\n    estimatedTime = 45;\n    if (client.income_sources?.self_employment || client.business?.has_business) {\n      requiredForms.push('T2125'); estimatedTime += 30; priorityScore += 15; flags.push('SELF_EMPLOYED');\n      if (client.business?.needs_hst) { requiredForms.push('HST_RETURN'); estimatedTime += 20; }\n    }\n    if (client.income_sources?.rental) { requiredForms.push('T776'); estimatedTime += 25; priorityScore += 10; flags.push('RENTAL_INCOME'); }\n    if (client.income_sources?.investments) { flags.push('INVESTMENTS'); estimatedTime += 15; }\n    if (client.income_sources?.capital_gains) { requiredForms.push('T1SCH3'); estimatedTime += 20; priorityScore += 10; flags.push('CAPITAL_GAINS'); }\n    if (client.income_sources?.crypto) { flags.push('CRYPTOCURRENCY'); estimatedTime += 30; priorityScore += 15; }\n    if (client.income_sources?.foreign) { requiredForms.push('T1135'); estimatedTime += 25; priorityScore += 20; flags.push('FOREIGN_INCOME'); }\n  }\n\n  if (client.special_situations?.first_time_filer) flags.push('FIRST_TIME_FILER');\n  if (client.special_situations?.new_to_canada) { flags.push('NEW_RESIDENT'); requiredForms.push('T1_NewResident'); priorityScore += 15; }\n  if (client.special_situations?.deceased_return) { flags.push('DECEASED_RETURN'); requiredForms.push('T1_Final'); priorityScore += 30; assignTo = 'senior_accountant'; }\n  if (client.special_situations?.cra_audit) { flags.push('CRA_AUDIT'); priorityScore += 40; assignTo = 'partner'; }\n  if (client.special_situations?.unfiled_years?.length > 0) { flags.push('BACK_TAXES'); priorityScore += client.special_situations.unfiled_years.length * 15; }\n  if (client.has_spouse) flags.push('COUPLED_RETURN');\n  if (client.has_dependents) flags.push('HAS_DEPENDENTS');\n  if (client.urgency === 'urgent') { flags.push('URGENT'); priorityScore += 20; }\n  if (client.is_existing_client) flags.push('RETURNING_CLIENT');\n\n  const complexityTier = priorityScore >= 50 ? 'COMPLEX' : priorityScore >= 25 ? 'MODERATE' : 'SIMPLE';\n  const pricingTier = serviceType === 'CORPORATE' ? 'corporate' : complexityTier === 'COMPLEX' ? 'premium' : complexityTier === 'MODERATE' ? 'standard_plus' : 'standard';\n\n  const triage = {\n    service_type: serviceType,\n    complexity_tier: complexityTier,\n    priority_score: priorityScore,\n    required_forms: [...new Set(requiredForms)],\n    flags: flags,\n    estimated_time_minutes: Math.max(estimatedTime, 30),\n    assign_to: assignTo,\n    pricing_tier: pricingTier,\n    is_new_client: !client.is_existing_client\n  };\n\n  return { json: { ...client, triage, _triage_error: null } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, triage: { service_type: 'PERSONAL', complexity_tier: 'SIMPLE', priority_score: 0, required_forms: ['T1'], flags: ['PROCESSING_ERROR'], estimated_time_minutes: 45, assign_to: 'general_queue', pricing_tier: 'standard', is_new_client: true }, _triage_error: error.message } };\n}"
+      },
+      "id": "5ffc54d0-1161-49a5-8113-3c2d1b279899",
+      "name": "Module 1: Triage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3296,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MODULE 2: NEXUS DETECTION - CON CONFIG\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  let nexusFlags = [];\n  let complexityScore = 0;\n  let jurisdictions = [];\n\n  let canadianProvinces = [];\n  if (client.provinces?.ontario) canadianProvinces.push('ON');\n  if (client.provinces?.quebec) canadianProvinces.push('QC');\n  if (client.provinces?.bc) canadianProvinces.push('BC');\n  if (client.provinces?.alberta) canadianProvinces.push('AB');\n\n  if (canadianProvinces.length > 1) {\n    nexusFlags.push('MULTI_PROVINCE');\n    complexityScore += 20;\n    jurisdictions.push(...canadianProvinces);\n  }\n\n  if (client.provinces?.quebec || client.quebec?.is_resident) {\n    nexusFlags.push('QUEBEC_RESIDENT');\n    complexityScore += 15;\n    if (!client.triage?.required_forms?.includes('TP1')) {\n      client.triage.required_forms = client.triage.required_forms || [];\n      client.triage.required_forms.push('TP1');\n    }\n  }\n\n  let usStates = [];\n  if (client.us_states?.florida) usStates.push('FL');\n  if (client.us_states?.new_york) usStates.push('NY');\n  if (client.us_states?.california) usStates.push('CA');\n\n  if (usStates.length > 1) {\n    nexusFlags.push('MULTI_STATE_US');\n    complexityScore += 25;\n    jurisdictions.push(...usStates.map(s => 'US-' + s));\n  }\n\n  const hasCrossBorder = client.us_states?.has_us_income || client.cross_border?.us_citizen || client.cross_border?.green_card || client.cross_border?.us_property || client.cross_border?.us_investments || client.cross_border?.snowbird;\n\n  if (hasCrossBorder) {\n    nexusFlags.push('CROSS_BORDER_US_CA');\n    complexityScore += 35;\n    if (client.cross_border?.us_citizen) { nexusFlags.push('US_CITIZEN_ABROAD'); complexityScore += 20; client.triage.required_forms.push('1040', 'FBAR'); }\n    if (client.cross_border?.green_card) { nexusFlags.push('GREEN_CARD_HOLDER'); complexityScore += 15; }\n    if (client.cross_border?.snowbird) { nexusFlags.push('SNOWBIRD_RISK'); complexityScore += 10; }\n  }\n\n  const nexusTier = complexityScore >= 60 ? 'HIGH' : complexityScore >= 30 ? 'MEDIUM' : 'STANDARD';\n  const billingMultiplier = CONFIG.billing.NEXUS_MULTIPLIERS[nexusTier] || 1.0;\n\n  const nexus = {\n    flags: nexusFlags,\n    jurisdictions: [...new Set(jurisdictions)],\n    complexity_score: complexityScore,\n    complexity_tier: nexusTier,\n    billing_multiplier: billingMultiplier,\n    is_multi_jurisdiction: nexusFlags.length > 0\n  };\n\n  return { json: { ...client, nexus, _nexus_error: null } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, nexus: { flags: [], jurisdictions: [], complexity_score: 0, complexity_tier: 'STANDARD', billing_multiplier: 1.0, is_multi_jurisdiction: false }, _nexus_error: error.message } };\n}"
+      },
+      "id": "363de486-b452-41ad-bd8a-98dcbd4e9e64",
+      "name": "Module 2: Nexus Detection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3072,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MODULE 3: BILL 96 - CON CONFIG\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  let bill96Flags = [];\n  let requirements = [];\n  let riskScore = 0;\n  let recommendations = [];\n\n  const hasQuebecNexus = client.quebec?.is_resident || client.quebec?.works_in_quebec || client.quebec?.has_quebec_clients || client.provinces?.quebec;\n\n  if (!hasQuebecNexus) {\n    return { json: { ...client, bill96: { applies: false, reason: 'No Quebec nexus', flags: [], requirements: [], risk_level: 'NONE', risk_score: 0, recommendations: [], is_francophone: false, oqlf_registration_needed: false, bilingual_service_recommended: false }, _bill96_error: null } };\n  }\n\n  bill96Flags.push('QUEBEC_NEXUS');\n  const isFrancophone = client.preferred_language === 'french' || client.quebec?.french_proficiency === 'native' || client.quebec?.french_proficiency === 'fluent';\n\n  if (!isFrancophone) {\n    bill96Flags.push('NON_FRANCOPHONE');\n    riskScore += 20;\n    if (client.quebec?.french_proficiency === 'none') { bill96Flags.push('NO_FRENCH'); riskScore += 15; recommendations.push('Consider bilingual communication strategy'); }\n  }\n\n  if (client.quebec?.has_quebec_clients || client.business?.has_business) {\n    requirements.push({ type: 'CONSUMER_CONTRACTS', rule: 'All consumer contracts must be in French', penalty: 'Contract may be nullified' });\n    riskScore += 25;\n    bill96Flags.push('PUBLIC_FACING');\n  }\n\n  if ((client.quebec?.num_employees_quebec || 0) >= CONFIG.canada.BILL_96_EMPLOYEE_THRESHOLD) {\n    requirements.push({ type: 'WORKPLACE_FRENCH', rule: 'Businesses with 5+ QC employees must francize', penalty: 'Fines up to $30,000' });\n    riskScore += 30;\n    bill96Flags.push('FRANCIZATION_REQUIRED');\n  }\n\n  if (client.quebec?.is_resident && !isFrancophone) {\n    requirements.push({ type: 'TAX_COMMUNICATION', rule: 'Revenu Québec communicates primarily in French', penalty: 'Missed deadlines' });\n    recommendations.push('Offer to explain Revenu Québec notices in English');\n    recommendations.push('Provide bilingual tax summaries');\n  }\n\n  const riskLevel = riskScore >= 60 ? 'HIGH' : riskScore >= 30 ? 'MEDIUM' : 'LOW';\n  if (riskLevel === 'HIGH') recommendations.unshift('⚠️ URGENT: Consult with OQLF compliance specialist');\n\n  const bill96 = {\n    applies: true,\n    nexus_type: client.quebec?.is_resident ? 'RESIDENT' : 'CLIENT_BASE',\n    flags: bill96Flags,\n    requirements: requirements,\n    risk_level: riskLevel,\n    risk_score: riskScore,\n    is_francophone: isFrancophone,\n    recommendations: recommendations,\n    oqlf_registration_needed: (client.quebec?.num_employees_quebec || 0) >= CONFIG.canada.BILL_96_EMPLOYEE_THRESHOLD,\n    bilingual_service_recommended: !isFrancophone\n  };\n\n  return { json: { ...client, bill96, _bill96_error: null } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, bill96: { applies: false, reason: 'Error', flags: [], requirements: [], risk_level: 'UNKNOWN', risk_score: 0, recommendations: [], is_francophone: false, oqlf_registration_needed: false, bilingual_service_recommended: false }, _bill96_error: error.message } };\n}"
+      },
+      "id": "86135069-8fa8-427e-ad54-4d0f41233c21",
+      "name": "Module 3: Bill 96",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2848,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MODULE 4: DOCUMENT COLLECTION - CON CONFIG\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  const docs = {\n    t4: { id: 't4', name_en: 'T4 Slips', name_es: 'Comprobantes T4', name_fr: 'Feuillets T4' },\n    t5: { id: 't5', name_en: 'T5 Slips', name_es: 'Comprobantes T5', name_fr: 'Feuillets T5' },\n    prior_noa: { id: 'prior_noa', name_en: 'Prior Year NOA', name_es: 'NOA Año Anterior', name_fr: 'ADC Année Précédente' },\n    id_sin: { id: 'id_sin', name_en: 'Photo ID + SIN', name_es: 'ID + SIN', name_fr: 'Pièce d\\'identité + NAS' },\n    business_income: { id: 'business_income', name_en: 'Business Income', name_es: 'Ingresos Negocio', name_fr: 'Revenus Entreprise' },\n    business_expenses: { id: 'business_expenses', name_en: 'Business Expenses', name_es: 'Gastos Negocio', name_fr: 'Dépenses Entreprise' },\n    rental_records: { id: 'rental_records', name_en: 'Rental Records', name_es: 'Registros Alquiler', name_fr: 'Registres Location' },\n    crypto_history: { id: 'crypto_history', name_en: 'Crypto Transaction History', name_es: 'Historial Crypto', name_fr: 'Historique Crypto' },\n    foreign_income: { id: 'foreign_income', name_en: 'Foreign Income Docs', name_es: 'Docs Ingresos Extranjeros', name_fr: 'Docs Revenus Étrangers' },\n    releve_1: { id: 'releve_1', name_en: 'Relevé 1', name_es: 'Relevé 1', name_fr: 'Relevé 1' },\n    financial_statements: { id: 'financial_statements', name_en: 'Financial Statements', name_es: 'Estados Financieros', name_fr: 'États Financiers' }\n  };\n\n  let requiredDocs = [];\n  let optionalDocs = [];\n\n  if (client.triage?.service_type !== 'CORPORATE') {\n    requiredDocs.push(docs.t4, docs.prior_noa);\n    optionalDocs.push(docs.t5);\n    if (client.triage?.is_new_client) requiredDocs.push(docs.id_sin);\n    if (client.triage?.flags?.includes('SELF_EMPLOYED')) requiredDocs.push(docs.business_income, docs.business_expenses);\n    if (client.triage?.flags?.includes('RENTAL_INCOME')) requiredDocs.push(docs.rental_records);\n    if (client.triage?.flags?.includes('CRYPTOCURRENCY')) requiredDocs.push(docs.crypto_history);\n    if (client.nexus?.flags?.includes('CROSS_BORDER_US_CA')) requiredDocs.push(docs.foreign_income);\n    if (client.bill96?.applies) requiredDocs.push(docs.releve_1);\n  } else {\n    requiredDocs.push(docs.financial_statements, docs.prior_noa);\n  }\n\n  const folderId = `${client.pipeline_id}_${client.tax_year}`;\n  const uploadUrl = CONFIG.document_paths.UPLOAD_URL_TEMPLATE.replace('{FOLDER_ID}', CONFIG.document_paths.GOOGLE_DRIVE_CLIENTS);\n\n  const documentCollection = {\n    required: requiredDocs,\n    optional: optionalDocs,\n    total_required: requiredDocs.length,\n    upload: { folder_id: folderId, url: uploadUrl, expires_at: new Date(Date.now() + CONFIG.document_paths.LINK_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString() },\n    send_sms: true,\n    send_email: true\n  };\n\n  return { json: { ...client, documentCollection, _docs_error: null } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, documentCollection: { required: [], optional: [], total_required: 0, upload: { folder_id: '', url: '', expires_at: '' }, send_sms: false, send_email: true }, _docs_error: error.message } };\n}"
+      },
+      "id": "398969f1-452c-436b-859b-ed4505b7256f",
+      "name": "Module 4: Document Collection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2624,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CALCULATE FINAL ANALYSIS - CON CONFIG\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  const totalComplexity = (client.triage?.priority_score || 0) + (client.nexus?.complexity_score || 0) + (client.bill96?.risk_score || 0);\n\n  let finalAssignment = client.triage?.assign_to || CONFIG.staff.AUTO_ASSIGN.DEFAULT;\n  if (client.nexus?.complexity_tier === 'HIGH' || client.bill96?.risk_level === 'HIGH') finalAssignment = 'senior_accountant';\n  if (client.triage?.flags?.includes('CRA_AUDIT')) finalAssignment = 'partner';\n\n  const billingMultiplier = Math.max(client.nexus?.billing_multiplier || 1.0, client.bill96?.risk_level === 'HIGH' ? 1.5 : 1.0);\n\n  let priorityLevel = 'NORMAL';\n  if (totalComplexity >= 100) priorityLevel = 'CRITICAL';\n  else if (totalComplexity >= 60) priorityLevel = 'HIGH';\n  else if (totalComplexity >= 30) priorityLevel = 'MEDIUM';\n\n  const allFlags = [...(client.triage?.flags || []), ...(client.nexus?.flags || []), ...(client.bill96?.flags || [])].filter((v, i, a) => a.indexOf(v) === i);\n  const allForms = [...new Set(client.triage?.required_forms || ['T1'])];\n\n  const moduleErrors = [];\n  if (client._error) moduleErrors.push(`Input: ${client._error}`);\n  if (client._triage_error) moduleErrors.push(`Triage: ${client._triage_error}`);\n  if (client._nexus_error) moduleErrors.push(`Nexus: ${client._nexus_error}`);\n  if (client._bill96_error) moduleErrors.push(`Bill96: ${client._bill96_error}`);\n  if (client._docs_error) moduleErrors.push(`Docs: ${client._docs_error}`);\n\n  const finalAnalysis = {\n    pipeline_id: client.pipeline_id,\n    total_complexity_score: totalComplexity,\n    priority_level: priorityLevel,\n    billing_multiplier: billingMultiplier,\n    assigned_to: finalAssignment,\n    all_flags: allFlags,\n    all_required_forms: allForms,\n    triage_summary: { service_type: client.triage?.service_type || 'PERSONAL', complexity: client.triage?.complexity_tier || 'SIMPLE', estimated_time: client.triage?.estimated_time_minutes || 45 },\n    nexus_summary: { is_multi_jurisdiction: client.nexus?.is_multi_jurisdiction || false, jurisdictions: client.nexus?.jurisdictions || [], tier: client.nexus?.complexity_tier || 'STANDARD' },\n    bill96_summary: { applies: client.bill96?.applies || false, risk_level: client.bill96?.risk_level || 'NONE', francophone: client.bill96?.is_francophone || false },\n    docs_summary: { required_count: client.documentCollection?.total_required || 0, upload_url: client.documentCollection?.upload?.url || '' },\n    module_errors: moduleErrors.length > 0 ? moduleErrors : null,\n    processed_at: new Date().toISOString(),\n    response_time: CONFIG.notifications.RESPONSE_TIMES[priorityLevel] || '48 hours'\n  };\n\n  return { json: { ...client, finalAnalysis } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, finalAnalysis: { pipeline_id: client.pipeline_id || `ERR-${Date.now()}`, total_complexity_score: 0, priority_level: 'MEDIUM', billing_multiplier: 1.0, assigned_to: 'senior_accountant', all_flags: ['PROCESSING_ERROR'], all_required_forms: ['T1'], module_errors: [error.message], processed_at: new Date().toISOString() } } };\n}"
+      },
+      "id": "24be619f-454b-4904-89a9-73e30689767c",
+      "name": "Calculate Final Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2416,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "critical",
+              "leftValue": "={{ $json.finalAnalysis.priority_level }}",
+              "rightValue": "CRITICAL",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a29909c7-892e-4c10-b1ef-26ff3c5874f9",
+      "name": "Critical Priority?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2192,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { ...data, alert: { alert_type: 'CRITICAL_INTAKE', priority: 'CRITICAL', subject: `🚨 CRITICAL: ${data.name} - Score ${data.finalAnalysis.total_complexity_score}` } } };"
+      },
+      "id": "8dbeaf07-d766-4f65-af7c-e836816ebf61",
+      "name": "Critical Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1968,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { ...data, alert: { alert_type: 'STANDARD_INTAKE', priority: data.finalAnalysis?.priority_level || 'NORMAL', subject: `New Intake: ${data.name} - ${data.triage?.service_type || 'Personal'}` } } };"
+      },
+      "id": "aab19621-3408-4189-abc8-af82fc08df40",
+      "name": "Standard Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1968,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "id": "51ccccd0-76c1-4641-851e-361d6f3475d0",
+      "name": "Merge Routes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1744,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARE RESPONSE - CON CONFIG\nconst data = $input.first().json;\nconst CONFIG = data._config;\n\nlet clientMessage = '';\nswitch(data.finalAnalysis?.priority_level) {\n  case 'CRITICAL': clientMessage = 'Thank you! Due to the complexity, a senior team member will contact you within 2 hours.'; break;\n  case 'HIGH': clientMessage = 'Thank you! A specialist will review your case and contact you within 24 hours.'; break;\n  default: clientMessage = 'Thank you! Please upload your documents using the link we sent.';\n}\n\nreturn { json: {\n  success: true,\n  pipeline_id: data.pipeline_id,\n  client: { name: data.name, email: data.email, phone: data.phone },\n  analysis: {\n    service_type: data.finalAnalysis?.triage_summary?.service_type || 'PERSONAL',\n    complexity_score: data.finalAnalysis?.total_complexity_score || 0,\n    priority_level: data.finalAnalysis?.priority_level || 'NORMAL',\n    assigned_to: data.finalAnalysis?.assigned_to || 'general_queue',\n    billing_multiplier: data.finalAnalysis?.billing_multiplier || 1.0,\n    estimated_time: `${data.finalAnalysis?.triage_summary?.estimated_time || 45} minutes`,\n    response_time: data.finalAnalysis?.response_time || '48 hours'\n  },\n  flags: data.finalAnalysis?.all_flags || [],\n  required_forms: data.finalAnalysis?.all_required_forms || ['T1'],\n  upload_url: data.documentCollection?.upload?.url || '',\n  message: clientMessage,\n  timestamp: new Date().toISOString()\n}};"
+      },
+      "id": "8a60bffd-7768-460b-91c2-d2fee6e63a61",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1520,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "03d1be5b-631d-491a-8b50-9ae1738f3a2e",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1296,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Master Intake": {
+      "main": [
+        [
+          {
+            "node": "Load Config Global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config Global": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Module 1: Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Module 1: Triage": {
+      "main": [
+        [
+          {
+            "node": "Module 2: Nexus Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Module 2: Nexus Detection": {
+      "main": [
+        [
+          {
+            "node": "Module 3: Bill 96",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Module 3: Bill 96": {
+      "main": [
+        [
+          {
+            "node": "Module 4: Document Collection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Module 4: Document Collection": {
+      "main": [
+        [
+          {
+            "node": "Calculate Final Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Final Analysis": {
+      "main": [
+        [
+          {
+            "node": "Critical Priority?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical Priority?": {
+      "main": [
+        [
+          {
+            "node": "Critical Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Standard Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical Alert": {
+      "main": [
+        [
+          {
+            "node": "Merge Routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standard Processing": {
+      "main": [
+        [
+          {
+            "node": "Merge Routes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Routes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "e522d678-e0b9-4a3a-8379-9ed5c8007699",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-06T00:45:12.197Z",
+      "createdAt": "2026-01-06T00:45:12.197Z",
+      "role": "workflow:owner",
+      "workflowId": "o2nDqKKS9sMaeYhV",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-06T00:45:02.260Z",
+      "createdAt": "2026-01-06T00:45:02.260Z",
+      "id": "6jeEtioyVnMc2x1e",
+      "name": "Master Pipeline"
+    },
+    {
+      "updatedAt": "2026-01-07T20:58:11.703Z",
+      "createdAt": "2026-01-07T20:58:11.703Z",
+      "id": "KFNwf730j017KHjm",
+      "name": "Module"
+    },
+    {
+      "updatedAt": "2026-01-06T00:12:56.335Z",
+      "createdAt": "2026-01-06T00:12:56.335Z",
+      "id": "Oxt17eGy8pqN9eZ4",
+      "name": "Tax Season"
+    },
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    }
+  ]
+}
