@@ -1,0 +1,397 @@
+{
+  "updatedAt": "2026-01-07T20:58:49.000Z",
+  "createdAt": "2026-01-06T00:17:18.722Z",
+  "id": "FyW7NN8l7HTnP9WH",
+  "name": "🏷️ Tax Triage (CON CONFIG)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tax-triage",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "77a105b8-047f-491c-a17f-2d74027bb4d6",
+      "name": "Webhook - Triage Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        448
+      ],
+      "webhookId": "faa88058-1f5c-49f0-96e3-45e0ea33d854"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "d809bdce-42c5-45c5-98ff-b64b32223c33",
+      "name": "Load Config Global",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -320,
+        448
+      ],
+      "notes": "⚙️ Selecciona [SISTEMA] Config Global"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PARSE TRIAGE DATA - CON CONFIG GLOBAL\ntry {\n  const CONFIG = $('Load Config Global').item.json;\n  const input = $('Webhook - Triage Intake').item.json;\n\n  const clientData = {\n    name: String(input.name || input.client_name || '').trim() || 'Unknown',\n    email: String(input.email || '').trim().toLowerCase(),\n    phone: String(input.phone || '').trim(),\n    preferred_language: String(input.language || input.preferred_language || CONFIG.DEFAULT_LANG).toLowerCase(),\n    is_existing_client: Boolean(input.is_existing_client || input.existing_client),\n    client_id: input.client_id || null,\n    entity_type: String(input.entity_type || input.client_type || 'individual').toLowerCase(),\n    employment_type: String(input.employment_type || 'employed').toLowerCase(),\n    has_spouse: Boolean(input.has_spouse || input.married),\n    has_dependents: Boolean(input.has_dependents || input.children),\n    num_dependents: Math.max(0, parseInt(input.num_dependents) || 0),\n    income_sources: {\n      employment: input.has_employment_income !== false,\n      self_employment: Boolean(input.has_self_employment || input.has_business),\n      rental: Boolean(input.has_rental_income || input.rental_property),\n      investments: Boolean(input.has_investment_income || input.investments),\n      foreign: Boolean(input.has_foreign_income),\n      crypto: Boolean(input.has_crypto || input.cryptocurrency),\n      capital_gains: Boolean(input.has_capital_gains || input.sold_property)\n    },\n    business: {\n      has_business: Boolean(input.has_business || input.self_employed),\n      business_type: input.business_type || null,\n      has_employees: Boolean(input.has_employees),\n      annual_revenue: parseFloat(input.annual_revenue) || null,\n      needs_hst: Boolean(input.needs_hst || input.hst_registration)\n    },\n    corporation: {\n      is_ccpc: Boolean(input.is_ccpc),\n      has_shareholder_loans: Boolean(input.shareholder_loans),\n      needs_t2: Boolean(input.needs_t2 || input.entity_type === 'corporation')\n    },\n    special_situations: {\n      first_time_filer: Boolean(input.first_time || input.first_time_filer),\n      new_to_canada: Boolean(input.new_to_canada || input.immigrant),\n      leaving_canada: Boolean(input.leaving_canada),\n      deceased_return: Boolean(input.deceased || input.estate),\n      bankruptcy: Boolean(input.bankruptcy),\n      cra_audit: Boolean(input.audit || input.cra_review),\n      unfiled_years: Array.isArray(input.unfiled_years) ? input.unfiled_years : []\n    },\n    urgency: String(input.urgency || 'normal').toLowerCase(),\n    deadline_concern: Boolean(input.deadline_concern),\n    source: String(input.source || 'form'),\n    received_at: new Date().toISOString(),\n    _config: CONFIG,\n    _error: null\n  };\n\n  return { json: clientData };\n} catch (error) {\n  const CONFIG = $('Load Config Global').item.json || {};\n  return { json: { name: 'Error', _config: CONFIG, _error: error.message } };\n}"
+      },
+      "id": "296a532d-6029-4317-8d35-cf5cd00d2b0a",
+      "name": "Parse Triage Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// TRIAGE LOGIC - CON CONFIG GLOBAL\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  let requiredForms = [];\n  let serviceType = '';\n  let estimatedTime = 0;\n  let priorityScore = 0;\n  let flags = [];\n  let assignTo = CONFIG.staff.AUTO_ASSIGN.DEFAULT;\n\n  if (client.entity_type === 'corporation' || client.corporation?.needs_t2) {\n    serviceType = 'CORPORATE';\n    requiredForms.push('T2');\n    estimatedTime = 180;\n    priorityScore += 30;\n    if (client.corporation?.is_ccpc) { flags.push('CCPC'); requiredForms.push('T2SCH125', 'T2SCH100'); }\n    if (client.corporation?.has_shareholder_loans) { flags.push('SHAREHOLDER_LOANS'); priorityScore += 10; }\n  } else if (client.entity_type === 'trust') {\n    serviceType = 'TRUST';\n    requiredForms.push('T3');\n    estimatedTime = 120;\n    priorityScore += 25;\n    assignTo = 'senior_accountant';\n  } else {\n    serviceType = 'PERSONAL';\n    requiredForms.push('T1');\n    estimatedTime = 45;\n\n    if (client.income_sources?.self_employment || client.business?.has_business) {\n      requiredForms.push('T2125'); estimatedTime += 30; priorityScore += 15; flags.push('SELF_EMPLOYED');\n      if (client.business?.needs_hst) { requiredForms.push('HST_RETURN'); estimatedTime += 20; }\n    }\n    if (client.income_sources?.rental) { requiredForms.push('T776'); estimatedTime += 25; priorityScore += 10; flags.push('RENTAL_INCOME'); }\n    if (client.income_sources?.investments) { flags.push('INVESTMENTS'); estimatedTime += 15; }\n    if (client.income_sources?.capital_gains) { requiredForms.push('T1SCH3'); estimatedTime += 20; priorityScore += 10; flags.push('CAPITAL_GAINS'); }\n    if (client.income_sources?.crypto) { flags.push('CRYPTOCURRENCY'); estimatedTime += 30; priorityScore += 15; }\n    if (client.income_sources?.foreign) { requiredForms.push('T1135'); estimatedTime += 25; priorityScore += 20; flags.push('FOREIGN_INCOME'); }\n  }\n\n  if (client.special_situations?.first_time_filer) { flags.push('FIRST_TIME_FILER'); estimatedTime += 15; }\n  if (client.special_situations?.new_to_canada) { flags.push('NEW_RESIDENT'); requiredForms.push('T1_NewResident'); estimatedTime += 30; priorityScore += 15; }\n  if (client.special_situations?.leaving_canada) { flags.push('EMIGRANT'); requiredForms.push('T1_Emigrant'); estimatedTime += 45; priorityScore += 25; assignTo = 'senior_accountant'; }\n  if (client.special_situations?.deceased_return) { flags.push('DECEASED_RETURN'); requiredForms.push('T1_Final'); estimatedTime += 60; priorityScore += 30; assignTo = 'senior_accountant'; }\n  if (client.special_situations?.cra_audit) { flags.push('CRA_AUDIT'); priorityScore += 40; assignTo = 'partner'; }\n  if (client.special_situations?.unfiled_years?.length > 0) { flags.push('BACK_TAXES'); const years = client.special_situations.unfiled_years.length; estimatedTime += years * 45; priorityScore += years * 15; }\n  if (client.special_situations?.bankruptcy) { flags.push('BANKRUPTCY'); requiredForms.push('T1_PreBankruptcy', 'T1_PostBankruptcy'); estimatedTime += 60; priorityScore += 25; assignTo = 'senior_accountant'; }\n  if (client.has_spouse) { flags.push('COUPLED_RETURN'); estimatedTime += 30; }\n  if (client.has_dependents && client.num_dependents > 0) { flags.push('HAS_DEPENDENTS'); estimatedTime += client.num_dependents * 10; }\n  if (client.urgency === 'urgent' || client.deadline_concern) { flags.push('URGENT'); priorityScore += 20; }\n  if (client.is_existing_client) { flags.push('RETURNING_CLIENT'); priorityScore += 5; estimatedTime -= 10; }\n\n  const complexityTier = priorityScore >= 50 ? 'COMPLEX' : priorityScore >= 25 ? 'MODERATE' : 'SIMPLE';\n  const pricingTier = serviceType === 'CORPORATE' ? 'corporate' : complexityTier === 'COMPLEX' ? 'premium' : complexityTier === 'MODERATE' ? 'standard_plus' : 'standard';\n  const billingMultiplier = CONFIG.billing.COMPLEXITY_MULTIPLIERS[complexityTier.toUpperCase()] || CONFIG.billing.COMPLEXITY_MULTIPLIERS.SIMPLE;\n\n  const triage = {\n    service_type: serviceType,\n    complexity_tier: complexityTier,\n    priority_score: priorityScore,\n    required_forms: [...new Set(requiredForms)],\n    flags: flags,\n    estimated_time_minutes: Math.max(estimatedTime, 30),\n    assign_to: assignTo,\n    pricing_tier: pricingTier,\n    billing_multiplier: billingMultiplier,\n    is_new_client: !client.is_existing_client,\n    processed_at: new Date().toISOString()\n  };\n\n  return { json: { ...client, triage, _triage_error: null } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, triage: { service_type: 'PERSONAL', complexity_tier: 'SIMPLE', priority_score: 0, required_forms: ['T1'], flags: ['PROCESSING_ERROR'], estimated_time_minutes: 45, assign_to: 'general_queue', pricing_tier: 'standard', billing_multiplier: 1.0, is_new_client: true, processed_at: new Date().toISOString() }, _triage_error: error.message } };\n}"
+      },
+      "id": "8a915162-763a-4f86-932c-a4fa7a14784a",
+      "name": "Triage Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-corporate",
+              "leftValue": "={{ $json.triage.service_type }}",
+              "rightValue": "CORPORATE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8226312f-3320-4064-9da9-97f6720e758c",
+      "name": "Route by Service Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        352,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { route: 'CORPORATE', priority: 'HIGH', subject: `📊 Corporate Tax: ${data.name}`, data: data } };"
+      },
+      "id": "6d3a20f3-277f-405e-b2f2-d935fc3b59ad",
+      "name": "Corporate Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-complex",
+              "leftValue": "={{ $json.triage.complexity_tier }}",
+              "rightValue": "COMPLEX",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9d4c5613-7c02-4732-bbb6-2643ed748e64",
+      "name": "Route by Complexity",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        576,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { route: 'COMPLEX_PERSONAL', priority: 'MEDIUM-HIGH', subject: `⚠️ Complex Return: ${data.name}`, data: data } };"
+      },
+      "id": "63a7f04c-c7f7-4fc2-bc12-e7de1aeb6f40",
+      "name": "Complex Personal Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { route: 'STANDARD_PERSONAL', priority: 'NORMAL', subject: `✅ Standard Return: ${data.name}`, data: data } };"
+      },
+      "id": "99ed2da7-7ade-4594-b8d3-20033e609a74",
+      "name": "Simple Personal Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "id": "ec7956e7-da41-43ef-a2a4-7ba28ab6a51e",
+      "name": "Merge All Routes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1024,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARE RESPONSE - CON CONFIG\ntry {\n  const data = $input.first().json;\n  const CONFIG = data.data?._config || {};\n  const triageData = data.data?.triage || data.triage;\n  const clientData = data.data || data;\n\n  let nextSteps = '';\n  const responseTime = CONFIG.notifications?.RESPONSE_TIMES?.[data.priority?.toUpperCase()] || '48 hours';\n\n  switch(data.route) {\n    case 'CORPORATE': nextSteps = `Our corporate tax specialist will contact you within ${responseTime}.`; break;\n    case 'COMPLEX_PERSONAL': nextSteps = `Due to complexity, a senior accountant will reach out within ${responseTime}.`; break;\n    default: nextSteps = 'Thank you! You will receive a document checklist shortly.';\n  }\n\n  return { json: {\n    success: true,\n    client_name: clientData.name,\n    client_status: clientData.is_existing_client ? 'returning' : 'new',\n    service_type: triageData?.service_type || 'PERSONAL',\n    complexity: triageData?.complexity_tier || 'SIMPLE',\n    required_forms: triageData?.required_forms || ['T1'],\n    estimated_time: `${triageData?.estimated_time_minutes || 45} minutes`,\n    pricing_tier: triageData?.pricing_tier || 'standard',\n    billing_multiplier: triageData?.billing_multiplier || 1.0,\n    flags: triageData?.flags || [],\n    assigned_to: triageData?.assign_to || 'general_queue',\n    next_steps: nextSteps,\n    response_time: responseTime,\n    message: data.route === 'CORPORATE' ? 'Corporate tax inquiry received. Our business tax team will contact you shortly.' : `Your ${(triageData?.complexity_tier || 'simple').toLowerCase()} tax return has been queued.`,\n    timestamp: new Date().toISOString()\n  }};\n} catch (error) {\n  return { json: { success: false, message: 'Your tax inquiry was received. Our team will contact you.', error: error.message, timestamp: new Date().toISOString() } };\n}"
+      },
+      "id": "bd6c1b77-bedb-4320-9654-84dbe778f1eb",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "382fc376-d952-4e6e-85e1-8442116321c4",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1472,
+        448
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Triage Intake": {
+      "main": [
+        [
+          {
+            "node": "Load Config Global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config Global": {
+      "main": [
+        [
+          {
+            "node": "Parse Triage Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Triage Data": {
+      "main": [
+        [
+          {
+            "node": "Triage Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triage Logic": {
+      "main": [
+        [
+          {
+            "node": "Route by Service Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Service Type": {
+      "main": [
+        [
+          {
+            "node": "Corporate Route",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route by Complexity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Corporate Route": {
+      "main": [
+        [
+          {
+            "node": "Merge All Routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Complexity": {
+      "main": [
+        [
+          {
+            "node": "Complex Personal Route",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Simple Personal Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complex Personal Route": {
+      "main": [
+        [
+          {
+            "node": "Merge All Routes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Simple Personal Route": {
+      "main": [
+        [
+          {
+            "node": "Merge All Routes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Routes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "5097ff7b-8cdb-4cda-bf47-633d51934a02",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-06T00:17:18.725Z",
+      "createdAt": "2026-01-06T00:17:18.725Z",
+      "role": "workflow:owner",
+      "workflowId": "FyW7NN8l7HTnP9WH",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-07T20:58:11.703Z",
+      "createdAt": "2026-01-07T20:58:11.703Z",
+      "id": "KFNwf730j017KHjm",
+      "name": "Module"
+    },
+    {
+      "updatedAt": "2026-01-06T00:12:56.335Z",
+      "createdAt": "2026-01-06T00:12:56.335Z",
+      "id": "Oxt17eGy8pqN9eZ4",
+      "name": "Tax Season"
+    },
+    {
+      "updatedAt": "2026-01-06T00:17:11.349Z",
+      "createdAt": "2026-01-06T00:17:11.349Z",
+      "id": "PN44xZXb0ZEfurCH",
+      "name": "Triage"
+    },
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    }
+  ]
+}
