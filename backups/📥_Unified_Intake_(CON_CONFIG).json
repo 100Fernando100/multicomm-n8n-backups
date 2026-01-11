@@ -1,0 +1,1012 @@
+{
+  "updatedAt": "2026-01-08T23:20:25.000Z",
+  "createdAt": "2026-01-07T16:26:05.320Z",
+  "id": "awL6yOkMmjPgSZoX",
+  "name": "📥 Unified Intake (CON CONFIG)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "unified-intake",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "85628c4e-1ef9-4c4d-b93d-f0bcc133364f",
+      "name": "Webhook - Unified Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -4528,
+        0
+      ],
+      "webhookId": "unified-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "// UNIFIED ROUTER - CON CONFIG GLOBAL\ntry {\n    const CONFIG = $(\"Call '00-Config Global'\").item.json;\n  const webhookData = $('Webhook - Unified Intake').item.json;\n  const body = webhookData.body || webhookData;\n\n  if (!body || typeof body !== 'object') {\n    throw new Error('VALIDATION_ERROR: Invalid or empty request body');\n  }\n\n  const flowType = body.flow_type || body.flowType || 'general_inquiry';\n\n  const baseData = {\n    name: String(body.name || '').trim() || 'Unknown',\n    email: String(body.email || '').trim().toLowerCase(),\n    phone: String(body.phone || '').trim(),\n    company: String(body.company || body.firmType || body.firm_type || '').trim(),\n    message: String(body.message || '').trim(),\n    preferred_language: String(body.preferred_language || body.language || CONFIG.DEFAULT_LANG).toLowerCase(),\n    source: String(body.source || 'bolt_form'),\n    received_at: new Date().toISOString(),\n    tax_year: CONFIG.CURRENT_TAX_YEAR\n  };\n\n  // Detectar Quebec usando CONFIG\n  const postalCode = String(body.postal_code || body.warehouse_zip || '').toUpperCase();\n  const isQuebec = postalCode && CONFIG.QUEBEC_PREFIXES.includes(postalCode.charAt(0));\n\n  let routingDecision = {\n    flow_type: flowType,\n    route_to: 'leads',\n    has_fiscal_data: false,\n    is_quebec: isQuebec\n  };\n\n  if (flowType === 'tax_audit' || body.fiscal_data || body.warehouse_zip || body.annual_sales_canada) {\n    routingDecision.route_to = 'tax_audit';\n    routingDecision.has_fiscal_data = true;\n  }\n\n  return { json: {\n    routing: routingDecision,\n    base: baseData,\n    raw: body,\n    _config: CONFIG,\n    _error: null,\n    _processed_at: new Date().toISOString()\n  }};\n\n} catch (error) {\n  const CONFIG = $('Load Config Global').item.json || {};\n  return { json: {\n    routing: { flow_type: 'error_fallback', route_to: 'leads', has_fiscal_data: false },\n    base: { name: 'Processing Error', email: '', phone: '', preferred_language: CONFIG.DEFAULT_LANG || 'english', source: 'error_fallback', received_at: new Date().toISOString() },\n    raw: $('Webhook - Unified Intake').item.json || {},\n    _config: CONFIG,\n    _error: error.message,\n    _processed_at: new Date().toISOString()\n  }};\n}"
+      },
+      "id": "6aeb0cfa-ff2d-445a-8437-ccb6a3b873b4",
+      "name": "Detect Flow Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3984,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "has-error",
+              "leftValue": "={{ $json._error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ecb31b3d-7c3d-4e82-aa3f-84d6f7d8df1a",
+      "name": "Initial Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst CONFIG = input._config || {};\nreturn { json: {\n  success: false, flow: 'error', error_id: `ERR-${Date.now()}`,\n  message: 'We received your submission but encountered a processing issue. Our team will contact you within 24 hours.',\n  message_es: 'Recibimos su envío pero encontramos un problema. Nuestro equipo lo contactará en 24 horas.',\n  timestamp: new Date().toISOString()\n}};"
+      },
+      "id": "e39dea9b-36f3-42d5-8864-1a5c0336dec4",
+      "name": "Error Fallback Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3536,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "07a91c0e-9494-4110-a2b8-126bfe478875",
+      "name": "Error Response (200)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -3296,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "is-tax-audit",
+              "leftValue": "={{ $json.routing.route_to }}",
+              "rightValue": "tax_audit",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7918ac59-f1b1-4d17-bcf0-a9b3ed364180",
+      "name": "Tax Audit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3536,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// TAX AUDIT NORMALIZER - CON CONFIG GLOBAL\ntry {\n  const input = $input.first().json;\n  const CONFIG = input._config;\n  const body = input.raw || {};\n  const base = input.base || {};\n\n  const USA_BORDER_HUBS = CONFIG.usa.BORDER_HUBS;\n  const GST_THRESHOLD = CONFIG.GST_THRESHOLD;\n  const USA_NEXUS_THRESHOLD = CONFIG.usa.NEXUS_THRESHOLDS.DEFAULT.sales;\n\n  const fiscalData = body.fiscal_data || {};\n  const warehouseZip = String(fiscalData.main_warehouse_zip || body.warehouse_zip || '').trim().toUpperCase();\n  const usaShippingZip = String(fiscalData.usa_shipping_zip || body.usa_shipping_zip || '').trim();\n  \n  const salesCanada = Math.max(0, parseFloat(String(fiscalData.annual_sales_canada || body.annual_sales_canada || '0').replace(/[^0-9.-]/g, '')) || 0);\n  const salesUSA = Math.max(0, parseFloat(String(fiscalData.annual_sales_usa || body.annual_sales_usa || '0').replace(/[^0-9.-]/g, '')) || 0);\n\n  const firstChar = warehouseZip.charAt(0) || '';\n  const provinceMap = CONFIG.canada.POSTAL_PREFIXES;\n  const province = provinceMap[firstChar] || 'OTHER';\n  const isQuebec = CONFIG.QUEBEC_PREFIXES.includes(firstChar);\n\n  const cleanUsaZip = usaShippingZip.substring(0, 5);\n  const borderHub = USA_BORDER_HUBS[cleanUsaZip] || null;\n\n  let riskFlags = [];\n  let triageScore = 0, nexusScore = 0, bill96Score = 0;\n\n  if (salesCanada >= GST_THRESHOLD) { riskFlags.push('GST_REQUIRED'); triageScore += 25; }\n  if (salesUSA >= USA_NEXUS_THRESHOLD) { riskFlags.push('USA_NEXUS_LIKELY'); nexusScore += 35; }\n  else if (salesUSA >= USA_NEXUS_THRESHOLD / 2) { riskFlags.push('USA_NEXUS_POSSIBLE'); nexusScore += 15; }\n  if (borderHub) { riskFlags.push('BORDER_LOGISTICS'); nexusScore += 20; }\n  if (salesCanada > 0 && salesUSA > 0) { riskFlags.push('CROSS_BORDER'); triageScore += 20; }\n  if (isQuebec) {\n    riskFlags.push('QUEBEC_OPERATIONS'); bill96Score += 30;\n    if (base.preferred_language !== 'french') { riskFlags.push('NON_FRANCOPHONE'); bill96Score += 20; }\n  }\n\n  const totalScore = triageScore + nexusScore + bill96Score;\n  const priorityLevel = totalScore >= 80 ? 'Critical' : totalScore >= 50 ? 'High' : totalScore >= 25 ? 'Medium' : 'Low';\n  const billingMultiplier = totalScore >= 60 ? CONFIG.billing.COMPLEXITY_MULTIPLIERS.VERY_COMPLEX : totalScore >= 30 ? CONFIG.billing.COMPLEXITY_MULTIPLIERS.COMPLEX : CONFIG.billing.COMPLEXITY_MULTIPLIERS.SIMPLE;\n  const assignedTo = priorityLevel === 'Critical' ? 'partner' : priorityLevel === 'High' ? 'senior_accountant' : CONFIG.staff.AUTO_ASSIGN.DEFAULT;\n\n  const pipelineId = `AUDIT-${Date.now()}`;\n\n  return { json: {\n    pipeline_id: pipelineId,\n    tax_year: CONFIG.CURRENT_TAX_YEAR,\n    service_type: 'E-commerce Audit',\n    complexity_tier: totalScore >= 60 ? 'Very High' : totalScore >= 40 ? 'High' : totalScore >= 20 ? 'Medium' : 'Low',\n    priority_level: priorityLevel,\n    total_complexity_score: totalScore,\n    billing_multiplier: billingMultiplier,\n    assigned_to: assignedTo,\n    status: 'New Intake',\n    all_flags: riskFlags.join(', '),\n    triage_score: triageScore,\n    nexus_score: nexusScore,\n    bill96_score: bill96Score,\n    nexus_tier: nexusScore >= 40 ? 'High' : nexusScore >= 20 ? 'Medium' : 'Low',\n    nexus_jurisdictions: borderHub ? `${borderHub.state}` : (salesUSA > 0 ? 'USA (Economic)' : ''),\n    bill96_applies: isQuebec,\n    bill96_risk_level: bill96Score >= 40 ? 'High' : bill96Score >= 20 ? 'Medium' : isQuebec ? 'Low' : 'None',\n    is_francophone: base.preferred_language === 'french',\n    source: base.source,\n    created_at: base.received_at,\n    client: { name: base.name, email: base.email, phone: base.phone, company: base.company, province: province, language: base.preferred_language },\n    analysis: { warehouse_postal: warehouseZip, usa_shipping_zip: usaShippingZip, is_quebec: isQuebec, border_hub: borderHub, sales_canada: salesCanada, sales_usa: salesUSA, total_sales: salesCanada + salesUSA },\n    email_subject: `🔔 New Tax Audit - ${base.name || 'Unknown'} - ${priorityLevel} Priority`,\n    email_body: `New Tax Audit Request\\n\\nClient: ${base.name}\\nCompany: ${base.company || 'N/A'}\\nEmail: ${base.email}\\nPhone: ${base.phone}\\n\\nPipeline ID: ${pipelineId}\\nPriority: ${priorityLevel}\\nScore: ${totalScore}\\nProvince: ${province}\\nQuebec: ${isQuebec ? 'YES' : 'NO'}\\nUSA Sales: $${salesUSA.toLocaleString()}\\nCanada Sales: $${salesCanada.toLocaleString()}\\n\\nFlags: ${riskFlags.join(', ')}`,\n    _config: { airtable_base: CONFIG.AIRTABLE_BASE_ID, sendgrid_from: CONFIG.SENDGRID_FROM, alert_email: CONFIG.ALERT_EMAIL },\n    _error: null\n  }};\n\n} catch (error) {\n  const CONFIG = $input.first().json?._config || {};\n  return { json: {\n    pipeline_id: `ERR-${Date.now()}`,\n    service_type: 'E-commerce Audit - ERROR',\n    priority_level: 'High',\n    status: 'Error - Manual Review',\n    _config: { airtable_base: CONFIG.AIRTABLE_BASE_ID || '', sendgrid_from: CONFIG.SENDGRID_FROM || '', alert_email: CONFIG.ALERT_EMAIL || '' },\n    _error: error.message\n  }};\n}"
+      },
+      "id": "b449791d-cc97-4826-b5ed-6fb87f8f291f",
+      "name": "Tax Audit Normalizer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $json._config.airtable_base }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "list"
+        },
+        "filterByFormula": "={Email}='{{ $json.client.email }}'",
+        "options": {}
+      },
+      "id": "99710a37-6d31-469d-a11b-f80d677f75e8",
+      "name": "Find Existing Client",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -3072,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "LyY9rQMryxBikuvf",
+          "name": "Business Solutions - Airtable"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "client-exists",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "78cc4ede-0a00-49de-bdfe-91ad667e6474",
+      "name": "Client Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2848,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientId = $input.first().json.id;\nconst taxData = $('Tax Audit Normalizer').item.json;\nreturn { json: { ...taxData, client_record_id: clientId } };"
+      },
+      "id": "dcc816be-b6a0-4a6a-a8c8-39ef23a7871b",
+      "name": "Use Existing Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2624,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientId = $input.first().json.id;\nconst taxData = $('Tax Audit Normalizer').item.json;\nreturn { json: { ...taxData, client_record_id: clientId } };"
+      },
+      "id": "8445c48b-13d0-41bd-951a-39f8550ab36f",
+      "name": "Get New Client ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2400,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $json._config.airtable_base }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Tax_Cases",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pipeline ID": "={{ $json.pipeline_id }}",
+            "Client": "={{ $json.client_record_id ? [$json.client_record_id] : [] }}",
+            "Tax Year": "={{ $json.tax_year }}",
+            "Service Type": "={{ $json.service_type }}",
+            "Complexity Tier": "={{ $json.complexity_tier }}",
+            "Priority Level": "={{ $json.priority_level }}",
+            "Total Complexity Score": "={{ $json.total_complexity_score }}",
+            "Billing Multiplier": "={{ $json.billing_multiplier }}",
+            "Assigned To": "={{ $json.assigned_to }}",
+            "Status": "={{ $json.status }}",
+            "All Flags": "={{ $json.all_flags }}",
+            "Triage Score": "={{ $json.triage_score }}",
+            "Nexus Score": "={{ $json.nexus_score }}",
+            "Bill96 Score": "={{ $json.bill96_score }}",
+            "Nexus Tier": "={{ $json.nexus_tier }}",
+            "Bill96 Applies": "={{ $json.bill96_applies }}",
+            "Bill96 Risk Level": "={{ $json.bill96_risk_level }}",
+            "Source": "={{ $json.source }}",
+            "Created At": "={{ $json.created_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "354871c6-61a7-4ba7-9569-79f39875242b",
+      "name": "Save to Tax_Cases",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -1952,
+        0
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "LyY9rQMryxBikuvf",
+          "name": "Business Solutions - Airtable"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "={{ $('Tax Audit Normalizer').item.json._config.sendgrid_from }}",
+        "fromName": "Tax Audit System - Multicomm",
+        "toEmail": "={{ $('Tax Audit Normalizer').item.json._config.alert_email }}",
+        "subject": "={{ $('Tax Audit Normalizer').item.json.email_subject }}",
+        "contentValue": "={{ $('Tax Audit Normalizer').item.json.email_body }}",
+        "additionalFields": {
+          "replyToEmail": "={{ $('Tax Audit Normalizer').item.json.client.email }}"
+        }
+      },
+      "id": "6f4bdf53-b87c-422e-a3fd-ee02c2e664cd",
+      "name": "Send Tax Audit Notification",
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        -1728,
+        0
+      ],
+      "credentials": {
+        "sendGridApi": {
+          "id": "Zn3MMxEaAOeNuk0Z",
+          "name": "Business Solutions - SendGrid"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const taxData = $('Tax Audit Normalizer').item.json;\nconst response = {\n  success: true, flow: 'tax_audit', pipeline_id: taxData.pipeline_id, priority: taxData.priority_level,\n  message: taxData.priority_level === 'Critical' ? 'Thank you! A senior specialist will contact you within 2 hours.' : taxData.priority_level === 'High' ? 'Thank you! A tax specialist will contact you within 24 hours.' : 'Thank you! We will contact you soon.',\n  message_es: taxData.priority_level === 'Critical' ? 'Gracias! Un especialista senior lo contactará en 2 horas.' : 'Gracias! Lo contactaremos pronto.'\n};\nreturn { json: response };"
+      },
+      "id": "a1a3c086-b86e-44ba-87b2-4e5368501853",
+      "name": "Prepare Tax Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// LEAD FLOW - CON CONFIG GLOBAL\nconst input = $input.first().json;\nconst CONFIG = input._config;\nconst base = input.base || {};\n\nreturn { json: {\n  name: base.name || 'Unknown',\n  email: base.email || '',\n  phone: base.phone || '',\n  firm_type: base.company || '',\n  message: base.message || '',\n  source: base.source || 'form',\n  lead_date: base.received_at || new Date().toISOString(),\n  preferred_language: base.preferred_language || CONFIG.DEFAULT_LANG,\n  _config: { airtable_base: CONFIG.AIRTABLE_BASE_ID, leads_table: CONFIG.airtable_tables.LEADS, sendgrid_from: CONFIG.SENDGRID_FROM, alert_email: CONFIG.ALERT_EMAIL }\n}};"
+      },
+      "id": "50f8aec1-16ab-4d39-9252-b15104d2c32d",
+      "name": "Format Lead Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3296,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $json._config.airtable_base }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "={{ $json._config.leads_table }}",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.name }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ $json.phone }}",
+            "Notes": "={{ $json.message }}",
+            "Source": "={{ $json.source }}",
+            "Date": "={{ $json.lead_date.substring(0, 19) + 'Z' }}",
+            "Company": "={{ $json.firm_type }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d3ebfd6d-177c-4f82-92ca-c2dfe1a1de7b",
+      "name": "Save to Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -3072,
+        192
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "LyY9rQMryxBikuvf",
+          "name": "Business Solutions - Airtable"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "={{ $('Format Lead Data').item.json._config.sendgrid_from }}",
+        "fromName": "Business Solutions - Multicomm",
+        "toEmail": "={{ $('Format Lead Data').item.json._config.alert_email }}",
+        "subject": "=New Lead - {{ $('Format Lead Data').item.json.name }}",
+        "contentValue": "=New Contact Form Submission\\n\\nName: {{ $('Format Lead Data').item.json.name }}\\nEmail: {{ $('Format Lead Data').item.json.email }}\\nPhone: {{ $('Format Lead Data').item.json.phone }}\\nFirm Type: {{ $('Format Lead Data').item.json.firm_type }}\\n\\nMessage:\\n{{ $('Format Lead Data').item.json.message }}\\n\\n---\\nReceived: {{ $('Format Lead Data').item.json.lead_date }}\\nSource: {{ $('Format Lead Data').item.json.source }}",
+        "additionalFields": {
+          "replyToEmail": "={{ $('Format Lead Data').item.json.email || $('Format Lead Data').item.json._config.alert_email }}"
+        }
+      },
+      "id": "8e9fb5c0-4bf3-45f8-ba36-478e9dc93985",
+      "name": "Send Lead Notification",
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        -2848,
+        192
+      ],
+      "credentials": {
+        "sendGridApi": {
+          "id": "Zn3MMxEaAOeNuk0Z",
+          "name": "Business Solutions - SendGrid"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { success: true, flow: 'general_inquiry', message: 'Thank you! We will contact you within 24 hours.', message_es: 'Gracias! Lo contactaremos en 24 horas.' } };"
+      },
+      "id": "e5c7faa7-663e-49db-a24a-72242eb6462a",
+      "name": "Prepare Lead Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2592,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "id": "97333e4e-7a47-455a-941d-97ec73b6094b",
+      "name": "Merge Final",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1280,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "bf653edb-eb6e-4815-9125-128b58b424ab",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1056,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "pJCBn6LgwRwf7as4",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/pJCBn6LgwRwf7as4",
+          "cachedResultName": "00-Config Global"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {}
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -4272,
+        0
+      ],
+      "id": "2e374a9c-77a4-45af-ab7c-6ecc64dd6f17",
+      "name": "Call '00-Config Global'"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appUcTJmLYOLXaz5c",
+          "mode": "list",
+          "cachedResultName": "Business Solutions - Multicomm.ai",
+          "cachedResultUrl": "https://airtable.com/appUcTJmLYOLXaz5c"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblDbxnlgdEkAG4zE",
+          "mode": "list",
+          "cachedResultName": "Clients",
+          "cachedResultUrl": "https://airtable.com/appUcTJmLYOLXaz5c/tblDbxnlgdEkAG4zE"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Is Returning Client": false,
+            "Name": "={{ $('Tax Audit Normalizer').item.json.client.name }}",
+            "Email": "={{ $('Tax Audit Normalizer').item.json.client.email }}",
+            "Company": "={{ $('Tax Audit Normalizer').item.json.client.company }}",
+            "Phone": "={{ $('Tax Audit Normalizer').item.json.client.phone }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Preferred Language",
+              "displayName": "Preferred Language",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "English",
+                  "value": "English"
+                },
+                {
+                  "name": "French",
+                  "value": "French"
+                },
+                {
+                  "name": "Spanish",
+                  "value": "Spanish"
+                },
+                {
+                  "name": "Other",
+                  "value": "Other"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Client Status",
+              "displayName": "Client Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "new",
+                  "value": "new"
+                },
+                {
+                  "name": "active",
+                  "value": "active"
+                },
+                {
+                  "name": "inactive",
+                  "value": "inactive"
+                },
+                {
+                  "name": "archived",
+                  "value": "archived"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Entity Type",
+              "displayName": "Entity Type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Individual",
+                  "value": "Individual"
+                },
+                {
+                  "name": "Business",
+                  "value": "Business"
+                },
+                {
+                  "name": "Nonprofit",
+                  "value": "Nonprofit"
+                },
+                {
+                  "name": "Trust",
+                  "value": "Trust"
+                },
+                {
+                  "name": "Other",
+                  "value": "Other"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Province",
+              "displayName": "Province",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Postal Code",
+              "displayName": "Postal Code",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Is Returning Client",
+              "displayName": "Is Returning Client",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "First Contact Date",
+              "displayName": "First Contact Date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Tax_Cases",
+              "displayName": "Tax_Cases",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -2640,
+        96
+      ],
+      "id": "4b5d2e42-df42-4551-b113-b67cdefe5b88",
+      "name": "Create a record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "zkgA7zRPB5sUWug0",
+          "name": "Business Solutions - Multicomm.ai"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Unified Intake": {
+      "main": [
+        [
+          {
+            "node": "Call '00-Config Global'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Flow Type": {
+      "main": [
+        [
+          {
+            "node": "Initial Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initial Error?": {
+      "main": [
+        [
+          {
+            "node": "Error Fallback Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tax Audit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Fallback Response": {
+      "main": [
+        [
+          {
+            "node": "Error Response (200)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tax Audit?": {
+      "main": [
+        [
+          {
+            "node": "Tax Audit Normalizer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tax Audit Normalizer": {
+      "main": [
+        [
+          {
+            "node": "Find Existing Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Existing Client": {
+      "main": [
+        [
+          {
+            "node": "Client Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client Exists?": {
+      "main": [
+        [
+          {
+            "node": "Use Existing Client",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Existing Client": {
+      "main": [
+        [
+          {
+            "node": "Save to Tax_Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Client ID": {
+      "main": [
+        [
+          {
+            "node": "Save to Tax_Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Tax_Cases": {
+      "main": [
+        [
+          {
+            "node": "Send Tax Audit Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Tax Audit Notification": {
+      "main": [
+        [
+          {
+            "node": "Prepare Tax Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Tax Response": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Leads": {
+      "main": [
+        [
+          {
+            "node": "Send Lead Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Lead Notification": {
+      "main": [
+        [
+          {
+            "node": "Prepare Lead Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Lead Response": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Final": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '00-Config Global'": {
+      "main": [
+        [
+          {
+            "node": "Detect Flow Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a record": {
+      "main": [
+        [
+          {
+            "node": "Get New Client ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "6cee9dfa-98ba-48e1-a7a2-91cf023fe456",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-01-07T16:26:05.322Z",
+      "createdAt": "2026-01-07T16:26:05.322Z",
+      "role": "workflow:owner",
+      "workflowId": "awL6yOkMmjPgSZoX",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-07T21:00:17.024Z",
+      "createdAt": "2026-01-07T21:00:17.024Z",
+      "id": "cMvUVW3msqxra4c0",
+      "name": "Active"
+    },
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    },
+    {
+      "updatedAt": "2026-01-07T20:54:27.189Z",
+      "createdAt": "2026-01-07T20:54:27.189Z",
+      "id": "u0JaX5YdNDMu7fbE",
+      "name": "Config"
+    }
+  ]
+}
