@@ -1,0 +1,507 @@
+{
+  "updatedAt": "2026-01-07T20:59:30.000Z",
+  "createdAt": "2026-01-06T00:35:13.074Z",
+  "id": "3ViGIQEWhNvyVOv5",
+  "name": "📄 Document Collection (CON CONFIG)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-collection",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "50be6933-f931-4b0e-9295-bf5d32851f44",
+      "name": "Webhook - Request Documents",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3792,
+        176
+      ],
+      "webhookId": "28a085f8-cbad-4e31-8827-1dd51bb32812"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "18a35eac-39e2-4658-82d4-d75e0e6290d3",
+      "name": "Load Config Global",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -3568,
+        176
+      ],
+      "notes": "⚙️ Selecciona [SISTEMA] Config Global"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PARSE REQUEST - CON CONFIG GLOBAL\ntry {\n  const CONFIG = $('Load Config Global').item.json;\n  const input = $('Webhook - Request Documents').item.json;\n\n  const clientData = {\n    name: String(input.name || input.client_name || '').trim() || 'Unknown',\n    email: String(input.email || '').trim().toLowerCase(),\n    phone: String(input.phone || '').trim(),\n    preferred_language: String(input.preferred_language || input.language || CONFIG.DEFAULT_LANG).toLowerCase(),\n    client_id: input.client_id || `CLI-${Date.now()}`,\n    tax_year: parseInt(input.tax_year) || CONFIG.CURRENT_TAX_YEAR,\n    service_type: String(input.service_type || 'PERSONAL').toUpperCase(),\n    required_forms: Array.isArray(input.required_forms) ? input.required_forms : ['T1'],\n    flags: Array.isArray(input.flags) ? input.flags : [],\n    is_cross_border: Boolean(input.is_cross_border),\n    has_foreign_income: Boolean(input.has_foreign_income),\n    is_self_employed: Boolean(input.is_self_employed || (input.flags || []).includes('SELF_EMPLOYED')),\n    has_rental: Boolean(input.has_rental || (input.flags || []).includes('RENTAL_INCOME')),\n    has_investments: Boolean(input.has_investments || (input.flags || []).includes('INVESTMENTS')),\n    has_crypto: Boolean(input.has_crypto || (input.flags || []).includes('CRYPTOCURRENCY')),\n    is_corporate: Boolean(input.is_corporate || input.service_type === 'CORPORATE'),\n    is_quebec: Boolean(input.is_quebec || input.bill96?.applies),\n    upload_method: String(input.upload_method || 'google_drive').toLowerCase(),\n    send_sms: input.send_sms !== false,\n    send_email: input.send_email !== false,\n    source: String(input.source || 'workflow'),\n    received_at: new Date().toISOString(),\n    _config: CONFIG,\n    _error: null\n  };\n\n  return { json: clientData };\n} catch (error) {\n  const CONFIG = $('Load Config Global').item.json || {};\n  return { json: { name: 'Error', client_id: `ERR-${Date.now()}`, _config: CONFIG, _error: error.message } };\n}"
+      },
+      "id": "a7425773-f452-4161-8f60-7196a39c5a22",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3344,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// GENERATE DOCUMENT CHECKLIST - CON CONFIG GLOBAL\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  const documentLibrary = {\n    t4_slips: { id: 't4_slips', name_en: 'T4 Employment Income Slips', name_es: 'Comprobantes T4', name_fr: 'Feuillets T4', required: true, category: 'income' },\n    t5_slips: { id: 't5_slips', name_en: 'T5 Investment Income Slips', name_es: 'Comprobantes T5', name_fr: 'Feuillets T5', required: false, category: 'income' },\n    rrsp_receipts: { id: 'rrsp_receipts', name_en: 'RRSP Contribution Receipts', name_es: 'Recibos RRSP', name_fr: 'Reçus REER', required: false, category: 'deductions' },\n    medical_expenses: { id: 'medical_expenses', name_en: 'Medical Expense Receipts', name_es: 'Recibos Médicos', name_fr: 'Reçus Médicaux', required: false, category: 'deductions' },\n    charitable_donations: { id: 'charitable_donations', name_en: 'Charitable Donation Receipts', name_es: 'Recibos Donaciones', name_fr: 'Reçus Dons', required: false, category: 'deductions' },\n    id_documents: { id: 'id_documents', name_en: 'Photo ID + SIN', name_es: 'ID + SIN', name_fr: 'Pièce ID + NAS', required: true, category: 'identification' },\n    prior_year_return: { id: 'prior_year_return', name_en: 'Prior Year NOA', name_es: 'NOA Año Anterior', name_fr: 'ADC Année Précédente', required: true, category: 'reference' },\n    business_income: { id: 'business_income', name_en: 'Business Income Summary', name_es: 'Resumen Ingresos Negocio', name_fr: 'Sommaire Revenus Entreprise', required: true, category: 'business' },\n    business_expenses: { id: 'business_expenses', name_en: 'Business Expense Receipts', name_es: 'Recibos Gastos Negocio', name_fr: 'Reçus Dépenses Entreprise', required: true, category: 'business' },\n    rental_income: { id: 'rental_income', name_en: 'Rental Income Records', name_es: 'Registros Alquiler', name_fr: 'Registres Location', required: true, category: 'rental' },\n    rental_expenses: { id: 'rental_expenses', name_en: 'Rental Property Expenses', name_es: 'Gastos Propiedad Alquiler', name_fr: 'Dépenses Propriété', required: true, category: 'rental' },\n    crypto_transactions: { id: 'crypto_transactions', name_en: 'Crypto Transaction History', name_es: 'Historial Crypto', name_fr: 'Historique Crypto', required: true, category: 'crypto' },\n    foreign_income_proof: { id: 'foreign_income_proof', name_en: 'Foreign Income Documentation', name_es: 'Docs Ingresos Extranjeros', name_fr: 'Docs Revenus Étrangers', required: true, category: 'foreign' },\n    foreign_bank_accounts: { id: 'foreign_bank_accounts', name_en: 'Foreign Bank Statements', name_es: 'Estados Cuenta Extranjeros', name_fr: 'Relevés Bancaires Étrangers', required: true, category: 'foreign' },\n    financial_statements: { id: 'financial_statements', name_en: 'Financial Statements', name_es: 'Estados Financieros', name_fr: 'États Financiers', required: true, category: 'corporate' },\n    releve_1: { id: 'releve_1', name_en: 'Relevé 1 (Quebec)', name_es: 'Relevé 1 (Quebec)', name_fr: 'Relevé 1 (Québec)', required: true, category: 'quebec' }\n  };\n\n  let requiredDocs = [];\n  let optionalDocs = [];\n\n  if (!client.is_corporate) {\n    requiredDocs.push(documentLibrary.t4_slips, documentLibrary.prior_year_return);\n    optionalDocs.push(documentLibrary.t5_slips, documentLibrary.rrsp_receipts, documentLibrary.medical_expenses, documentLibrary.charitable_donations);\n    if (client.client_id.startsWith('CLI-') || client.client_id.startsWith('ERR-')) requiredDocs.push(documentLibrary.id_documents);\n    if (client.is_self_employed) requiredDocs.push(documentLibrary.business_income, documentLibrary.business_expenses);\n    if (client.has_rental) requiredDocs.push(documentLibrary.rental_income, documentLibrary.rental_expenses);\n    if (client.has_crypto) requiredDocs.push(documentLibrary.crypto_transactions);\n    if (client.is_cross_border || client.has_foreign_income) requiredDocs.push(documentLibrary.foreign_income_proof, documentLibrary.foreign_bank_accounts);\n    if (client.is_quebec) requiredDocs.push(documentLibrary.releve_1);\n  } else {\n    requiredDocs = [documentLibrary.financial_statements, documentLibrary.prior_year_return];\n  }\n\n  const uniqueRequired = [...new Map(requiredDocs.map(d => [d.id, d])).values()];\n  const uniqueOptional = [...new Map(optionalDocs.map(d => [d.id, d])).values()];\n\n  return { json: { ...client, documents: { required: uniqueRequired, optional: uniqueOptional, total_required: uniqueRequired.length, total_optional: uniqueOptional.length, generated_at: new Date().toISOString() } } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, documents: { required: [], optional: [], total_required: 0, total_optional: 0, _error: error.message } } };\n}"
+      },
+      "id": "f773799d-c776-4cae-b6e2-3afbda79c6c4",
+      "name": "Generate Document Checklist",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3120,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// GENERATE UPLOAD LINK - CON CONFIG GLOBAL\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n\n  const folderId = `${client.client_id}_${client.tax_year}_${Date.now()}`;\n  const folderName = `${(client.name || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_')}_${client.tax_year}`;\n\n  const uploadLinks = {\n    google_drive: { base_url: CONFIG.document_paths.UPLOAD_URL_TEMPLATE.replace('{FOLDER_ID}', CONFIG.document_paths.GOOGLE_DRIVE_CLIENTS || 'YOUR_FOLDER_ID'), instructions_en: 'Click the link and drag your files into the folder', instructions_es: 'Haga clic y arrastre sus archivos', instructions_fr: 'Cliquez et glissez vos fichiers' },\n    dropbox: { base_url: `https://www.dropbox.com/request/${CONFIG.document_paths.DROPBOX_REQUEST_ID || 'YOUR_REQUEST_ID'}`, instructions_en: 'Click and upload your documents', instructions_es: 'Haga clic y suba sus documentos', instructions_fr: 'Cliquez et téléversez vos documents' },\n    email: { base_url: 'mailto:documents@multicomm.ai', instructions_en: 'Email your documents as attachments', instructions_es: 'Envíe sus documentos por email', instructions_fr: 'Envoyez vos documents par courriel' }\n  };\n\n  const selectedMethod = uploadLinks[client.upload_method] || uploadLinks.google_drive;\n  const lang = client.preferred_language || 'english';\n  const langKey = `instructions_${lang === 'spanish' ? 'es' : lang === 'french' ? 'fr' : 'en'}`;\n\n  return { json: { ...client, upload: { folder_id: folderId, folder_name: folderName, method: client.upload_method, url: selectedMethod.base_url, instructions: selectedMethod[langKey] || selectedMethod.instructions_en, expires_at: new Date(Date.now() + CONFIG.document_paths.LINK_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString() } } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, upload: { folder_id: `ERR-${Date.now()}`, method: 'email', url: 'mailto:documents@multicomm.ai', instructions: 'Email your documents', _error: error.message } } };\n}"
+      },
+      "id": "adf5cf1e-12ad-4af3-bedc-50b47d2c9e02",
+      "name": "Generate Upload Link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2896,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// GENERATE MESSAGES - CON CONFIG GLOBAL\ntry {\n  const client = $input.first().json;\n  const CONFIG = client._config;\n  const lang = client.preferred_language || 'english';\n\n  const firstName = (client.name || 'Client').split(' ')[0];\n  const uploadUrl = client.upload?.url || 'N/A';\n  const taxYear = client.tax_year || CONFIG.CURRENT_TAX_YEAR;\n\n  const smsMessages = {\n    english: `Hi ${firstName}! Your ${taxYear} tax docs are needed. Upload: ${uploadUrl} Questions? Reply here.`,\n    spanish: `Hola ${firstName}! Necesitamos sus docs de impuestos ${taxYear}. Suba aquí: ${uploadUrl} Preguntas? Responda.`,\n    french: `Bonjour ${firstName}! Vos docs fiscaux ${taxYear} requis. Téléversez: ${uploadUrl} Questions? Répondez.`\n  };\n\n  const emailSubjects = {\n    english: `Action Required: Upload Your ${taxYear} Tax Documents`,\n    spanish: `Acción Requerida: Suba Sus Documentos de Impuestos ${taxYear}`,\n    french: `Action Requise: Téléversez Vos Documents Fiscaux ${taxYear}`\n  };\n\n  const requiredDocs = client.documents?.required || [];\n  const langSuffix = lang === 'spanish' ? 'es' : lang === 'french' ? 'fr' : 'en';\n  const docList = requiredDocs.map(d => '• ' + (d[`name_${langSuffix}`] || d.name_en || d.id)).join('\\n');\n\n  const emailBodies = {\n    english: `Dear ${client.name},\\n\\nThank you for choosing us for your ${taxYear} tax preparation.\\n\\n📋 REQUIRED DOCUMENTS:\\n${docList}\\n\\n🔗 UPLOAD HERE:\\n${uploadUrl}\\n\\n${client.upload?.instructions || ''}\\n\\nBest regards,\\nMulticomm Tax Team`,\n    spanish: `Estimado/a ${client.name},\\n\\nGracias por elegirnos para sus impuestos ${taxYear}.\\n\\n📋 DOCUMENTOS REQUERIDOS:\\n${docList}\\n\\n🔗 SUBA AQUÍ:\\n${uploadUrl}\\n\\nSaludos,\\nEquipo Multicomm`,\n    french: `Cher/Chère ${client.name},\\n\\nMerci de nous avoir choisis pour vos impôts ${taxYear}.\\n\\n📋 DOCUMENTS REQUIS:\\n${docList}\\n\\n🔗 TÉLÉVERSEZ ICI:\\n${uploadUrl}\\n\\nCordialement,\\nÉquipe Multicomm`\n  };\n\n  return { json: { ...client, messages: { sms: { to: client.phone || '', body: smsMessages[lang] || smsMessages.english, char_count: (smsMessages[lang] || smsMessages.english).length }, email: { to: client.email || '', subject: emailSubjects[lang] || emailSubjects.english, body: emailBodies[lang] || emailBodies.english } } } };\n} catch (error) {\n  const client = $input.first().json;\n  return { json: { ...client, messages: { sms: { to: '', body: 'Please check your email for tax document requirements.' }, email: { to: '', subject: 'Tax Documents Required', body: 'Please contact us.' }, _error: error.message } } };\n}"
+      },
+      "id": "4f23b607-3d38-4575-b022-b436b2d32111",
+      "name": "Generate Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2672,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "send-sms",
+              "leftValue": "={{ $json.send_sms }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "28b0322b-b585-4a04-83c2-c75e20ce2260",
+      "name": "Send SMS?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2448,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// SMS Placeholder\nconst data = $input.first().json;\nreturn { json: { ...data, sms_status: 'PENDING_SEND', sms_config: { to: data.phone || data.messages?.sms?.to || '', body: data.messages?.sms?.body || '', timestamp: new Date().toISOString() } } };"
+      },
+      "id": "a74f00f0-737a-4b92-9c4d-af0a94b669e5",
+      "name": "Send SMS (Twilio)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2224,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { ...data, sms_status: 'SKIPPED' } };"
+      },
+      "id": "08c6e4e2-ecf7-4d9a-abbd-46c9a16fec5a",
+      "name": "Skip SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2224,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "id": "03994a42-b775-4f43-bfb2-519a0ef81fd0",
+      "name": "Merge SMS",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -2000,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "send-email",
+              "leftValue": "={{ $json.send_email }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1b11e39b-8206-4be9-8632-1a841cd537c6",
+      "name": "Send Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "={{ $('Parse Request').item.json._config.SENDGRID_FROM }}",
+        "fromName": "Document Request - Multicomm",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.messages.email.subject }}",
+        "contentValue": "={{ $json.messages.email.body }}",
+        "additionalFields": {}
+      },
+      "id": "120bbc90-4049-455e-82b3-9f102dcc5bef",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        -1552,
+        64
+      ],
+      "credentials": {
+        "sendGridApi": {
+          "id": "Zn3MMxEaAOeNuk0Z",
+          "name": "Business Solutions - SendGrid"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn { json: { ...data, email_status: 'SKIPPED' } };"
+      },
+      "id": "c3ed6712-e927-4a0a-8c48-9d2fb2084c50",
+      "name": "Skip Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "id": "fb2b1e2f-1000-4bad-ac94-bfc7a6c700c3",
+      "name": "Merge Email",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1328,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARE RESPONSE\ntry {\n  const data = $input.first().json;\n  const lang = data.preferred_language || 'english';\n\n  return { json: {\n    success: !data._error,\n    client_id: data.client_id,\n    client_name: data.name,\n    tax_year: data.tax_year,\n    documents: { required_count: data.documents?.total_required || 0, optional_count: data.documents?.total_optional || 0, checklist: (data.documents?.required || []).map(d => ({ id: d.id, name: d[`name_${lang === 'spanish' ? 'es' : lang === 'french' ? 'fr' : 'en'}`] || d.name_en, required: true })) },\n    upload: { method: data.upload?.method || 'email', url: data.upload?.url || '', expires_at: data.upload?.expires_at || '' },\n    notifications: { sms_sent: data.sms_status === 'PENDING_SEND', email_sent: data.email_status !== 'SKIPPED', sms_to: data.sms_status === 'PENDING_SEND' ? data.phone : null, email_to: data.email_status !== 'SKIPPED' ? data.email : null },\n    message: `Document request sent to ${data.name || 'client'}. Upload link: ${data.upload?.url || 'N/A'}`,\n    timestamp: new Date().toISOString()\n  }};\n} catch (error) {\n  return { json: { success: false, message: 'Document request processed with errors.', error: error.message, timestamp: new Date().toISOString() } };\n}"
+      },
+      "id": "0120ac27-ea8e-48bf-a0ee-8ff776c65c16",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "27b3630d-2132-4f82-a517-2b60f84a7133",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -880,
+        176
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Request Documents": {
+      "main": [
+        [
+          {
+            "node": "Load Config Global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config Global": {
+      "main": [
+        [
+          {
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "Generate Document Checklist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Document Checklist": {
+      "main": [
+        [
+          {
+            "node": "Generate Upload Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Upload Link": {
+      "main": [
+        [
+          {
+            "node": "Generate Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Messages": {
+      "main": [
+        [
+          {
+            "node": "Send SMS?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS?": {
+      "main": [
+        [
+          {
+            "node": "Send SMS (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Merge SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip SMS": {
+      "main": [
+        [
+          {
+            "node": "Merge SMS",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge SMS": {
+      "main": [
+        [
+          {
+            "node": "Send Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email?": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Email",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Email": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "2dd7ad32-84e6-4575-b7d1-b20f4dce43f5",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-06T00:35:13.076Z",
+      "createdAt": "2026-01-06T00:35:13.076Z",
+      "role": "workflow:owner",
+      "workflowId": "3ViGIQEWhNvyVOv5",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-06T00:35:09.310Z",
+      "createdAt": "2026-01-06T00:35:09.310Z",
+      "id": "DaQtXuTt9VQ1nFXL",
+      "name": "Document Collection"
+    },
+    {
+      "updatedAt": "2026-01-07T20:58:11.703Z",
+      "createdAt": "2026-01-07T20:58:11.703Z",
+      "id": "KFNwf730j017KHjm",
+      "name": "Module"
+    },
+    {
+      "updatedAt": "2026-01-06T00:12:56.335Z",
+      "createdAt": "2026-01-06T00:12:56.335Z",
+      "id": "Oxt17eGy8pqN9eZ4",
+      "name": "Tax Season"
+    },
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    }
+  ]
+}
