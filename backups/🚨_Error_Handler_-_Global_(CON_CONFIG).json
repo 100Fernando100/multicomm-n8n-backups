@@ -1,0 +1,294 @@
+{
+  "updatedAt": "2026-01-07T20:55:28.000Z",
+  "createdAt": "2026-01-07T18:58:55.665Z",
+  "id": "QVmvqyqjUZT2FJIb",
+  "name": "🚨 Error Handler - Global (CON CONFIG)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "2a3c991a-64d6-4222-9a3b-b60cb474d1d2",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "77799932-7623-461d-bbf4-ccb5f554db9c",
+      "name": "Load Config Global",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -896,
+        112
+      ],
+      "notes": "⚙️ Selecciona el workflow [SISTEMA] Config Global"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse error details from any workflow - USING CONFIG GLOBAL\nconst CONFIG = $('Load Config Global').item.json;\nconst error = $('Error Trigger').item.json;\n\nconst errorLog = {\n  error_id: `ERR-${Date.now()}`,\n  workflow_name: error.workflow?.name || 'Unknown Workflow',\n  workflow_id: error.workflow?.id || 'Unknown',\n  node_name: error.execution?.lastNodeExecuted || 'Unknown Node',\n  error_message: error.execution?.error?.message || 'No error message available',\n  error_stack: (error.execution?.error?.stack || '').substring(0, 2000),\n  execution_id: error.execution?.id || '',\n  execution_url: error.execution?.id ? `${CONFIG.credentials.N8N_INSTANCE_URL}/execution/${error.execution.id}` : '',\n  timestamp: new Date().toISOString(),\n  severity: determineSeverity(error),\n  category: categorizeError(error),\n  input_data: JSON.stringify(error.execution?.data?.resultData?.runData || {}).substring(0, 2000),\n  retry_recommended: shouldRetry(error),\n  \n  // Config para nodos siguientes\n  _config: {\n    airtable_base: CONFIG.AIRTABLE_BASE_ID,\n    error_table: CONFIG.airtable_tables.ERROR_LOGS,\n    alert_email: CONFIG.ALERT_EMAIL,\n    sendgrid_from: CONFIG.SENDGRID_FROM\n  }\n};\n\nfunction determineSeverity(err) {\n  const msg = (err.execution?.error?.message || '').toLowerCase();\n  const node = (err.execution?.lastNodeExecuted || '').toLowerCase();\n  \n  if (msg.includes('airtable') && msg.includes('create')) return 'CRITICAL';\n  if (msg.includes('duplicate') || msg.includes('constraint')) return 'CRITICAL';\n  if (msg.includes('authentication') || msg.includes('unauthorized') || msg.includes('401')) return 'HIGH';\n  if (msg.includes('airtable') || msg.includes('sendgrid')) return 'HIGH';\n  if (node.includes('save') || node.includes('create')) return 'HIGH';\n  if (msg.includes('timeout') || msg.includes('rate limit') || msg.includes('429')) return 'MEDIUM';\n  if (msg.includes('network') || msg.includes('econnrefused')) return 'MEDIUM';\n  if (msg.includes('validation') || msg.includes('invalid')) return 'LOW';\n  return 'MEDIUM';\n}\n\nfunction categorizeError(err) {\n  const msg = (err.execution?.error?.message || '').toLowerCase();\n  if (msg.includes('airtable')) return 'DATABASE';\n  if (msg.includes('sendgrid') || msg.includes('email')) return 'EMAIL';\n  if (msg.includes('twilio') || msg.includes('sms')) return 'SMS';\n  if (msg.includes('authentication') || msg.includes('api key')) return 'AUTH';\n  if (msg.includes('timeout') || msg.includes('network')) return 'NETWORK';\n  if (msg.includes('validation') || msg.includes('required')) return 'VALIDATION';\n  if (msg.includes('webhook')) return 'WEBHOOK';\n  return 'UNKNOWN';\n}\n\nfunction shouldRetry(err) {\n  const msg = (err.execution?.error?.message || '').toLowerCase();\n  return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('429') || msg.includes('503') || msg.includes('network');\n}\n\nreturn { json: errorLog };"
+      },
+      "id": "eaa424e3-3526-474f-aa92-70883963d35b",
+      "name": "Parse Error Details",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $json._config.airtable_base }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Error_Logs",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Error ID": "={{ $json.error_id }}",
+            "Workflow": "={{ $json.workflow_name }}",
+            "Node": "={{ $json.node_name }}",
+            "Error Message": "={{ $json.error_message }}",
+            "Severity": "={{ $json.severity }}",
+            "Category": "={{ $json.category }}",
+            "Execution ID": "={{ $json.execution_id }}",
+            "Execution URL": "={{ $json.execution_url }}",
+            "Timestamp": "={{ $json.timestamp }}",
+            "Input Data": "={{ $json.input_data }}",
+            "Retry Recommended": "={{ $json.retry_recommended }}",
+            "Resolved": false
+          }
+        },
+        "options": {}
+      },
+      "id": "eae2a558-579e-4de9-9457-9a72ad66653a",
+      "name": "Log to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -448,
+        112
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "LyY9rQMryxBikuvf",
+          "name": "Business Solutions - Airtable"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-critical",
+              "leftValue": "={{ $json.severity }}",
+              "rightValue": "CRITICAL",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "is-high",
+              "leftValue": "={{ $json.severity }}",
+              "rightValue": "HIGH",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "9bd14d6b-d0de-424b-9164-1aa1f5a37b70",
+      "name": "Critical or High?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "={{ $('Parse Error Details').item.json._config.sendgrid_from }}",
+        "fromName": "🚨 Multicomm Error Alert",
+        "toEmail": "={{ $('Parse Error Details').item.json._config.alert_email }}",
+        "subject": "=🚨 [{{ $('Parse Error Details').item.json.severity }}] Error in {{ $('Parse Error Details').item.json.workflow_name }} - {{ $('Parse Error Details').item.json.category }}",
+        "contentValue": "=╔══════════════════════════════════════════════════════════════╗\n║           WORKFLOW ERROR ALERT - {{ $('Parse Error Details').item.json.severity }}                    ║\n╚══════════════════════════════════════════════════════════════╝\n\n🔴 ERROR ID: {{ $('Parse Error Details').item.json.error_id }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 DETAILS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nWorkflow:     {{ $('Parse Error Details').item.json.workflow_name }}\nNode:         {{ $('Parse Error Details').item.json.node_name }}\nCategory:     {{ $('Parse Error Details').item.json.category }}\nSeverity:     {{ $('Parse Error Details').item.json.severity }}\nTimestamp:    {{ $('Parse Error Details').item.json.timestamp }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n❌ ERROR MESSAGE\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{{ $('Parse Error Details').item.json.error_message }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 LINKS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nExecution URL: {{ $('Parse Error Details').item.json.execution_url }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⚡ RECOMMENDED ACTION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{{ $('Parse Error Details').item.json.retry_recommended ? '🔄 Retry may resolve this issue (timeout/rate limit)' : '🔧 Manual investigation required' }}\n\n---\nThis is an automated alert from Multicomm Business Solutions.",
+        "additionalFields": {}
+      },
+      "id": "51402dcb-fdb4-4402-aaec-a7e509b31585",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "sendGridApi": {
+          "id": "Zn3MMxEaAOeNuk0Z",
+          "name": "Business Solutions - SendGrid"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Parse Error Details').item.json;\nconsole.log(`[${data.severity}] Error logged: ${data.error_id} in ${data.workflow_name}`);\nreturn { json: { ...data, notification_sent: false, action: 'Logged only - no notification for medium/low severity' } };"
+      },
+      "id": "bf6238aa-67c2-4e0f-9675-726d9c6cdd00",
+      "name": "Log Only (Medium/Low)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Parse Error Details').item.json;\nreturn { json: { processed: true, error_id: data.error_id, severity: data.severity, notification_sent: true, timestamp: new Date().toISOString() } };"
+      },
+      "id": "b95fcf5d-3769-41e6-be0f-629fdce8b6a4",
+      "name": "Email Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Config Global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config Global": {
+      "main": [
+        [
+          {
+            "node": "Parse Error Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error Details": {
+      "main": [
+        [
+          {
+            "node": "Log to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Critical or High?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical or High?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Only (Medium/Low)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "e2d5d1bf-094f-476d-884a-9e506a5bde69",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-07T18:58:55.668Z",
+      "createdAt": "2026-01-07T18:58:55.668Z",
+      "role": "workflow:owner",
+      "workflowId": "QVmvqyqjUZT2FJIb",
+      "projectId": "y7g2dwfAw5WHG5GO"
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-01-07T20:53:36.165Z",
+      "createdAt": "2026-01-07T20:53:36.165Z",
+      "id": "s8fiODX8XAx3IqTE",
+      "name": "Tax System"
+    }
+  ]
+}
